@@ -1,4 +1,4 @@
-#ifdef __WIN32__
+#ifdef _WIN32
     #define SDL_MAIN_HANDLED
 #endif
 
