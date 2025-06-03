@@ -1,4 +1,4 @@
-#ifdef __WIN32__
+#ifdef _WIN32
     #define SDL_MAIN_HANDLED
 #endif
 
@@ -217,7 +217,7 @@ void handleKeyboard(SDL_Keycode key) {
         currColor[1] = 0;
         currColor[2] = 0;
         break;
-    case SDLK_b:
+    case SDLK_t:
         currColor[0] = 0;   // Black
         currColor[1] = 0;
         currColor[2] = 0;
@@ -226,6 +226,18 @@ void handleKeyboard(SDL_Keycode key) {
         currColor[0] = 255; // Yellow
         currColor[1] = 255;
         currColor[2] = 0;
+        break;
+    case SDLK_b:
+        //teal
+		currColor[0] = 0;   // Teal
+        currColor[1] = 255;
+        currColor[2] = 255;
+		break;
+    case SDLK_i:
+        //teal
+        currColor[0] = 75;   // Teal
+        currColor[1] = 0;
+        currColor[2] = 130;
         break;
     case SDLK_z:
         if (!functionsToCall.empty()) {
@@ -394,12 +406,14 @@ void drawTUI(SDL_Renderer* rend) {
         {"P", "Pencil Tool", pencilTool, false, {0, 0, 0}},
         {"E", "Eraser Tool", eraserTool, false, {0, 0, 0}},
         {"L", "Line Tool", lineTool, false, {0, 0, 0}},
-        {"F", "Fill Tool", paintTool, false, {0, 0, 0}},
+        {"F", "FloodFill Tool", paintTool, false, {0, 0, 0}},
         {"Q", "Rectangle Tool", rectTool, false, {0, 0, 0}},
         {"R", "Red Color", currColor[0] == 255 && currColor[1] == 0 && currColor[2] == 0, true, {255, 0, 0}},
         {"G", "Green Color", currColor[0] == 0 && currColor[1] == 255 && currColor[2] == 0, true, {0, 255, 0}},
+        {"B", "Blue Color", currColor[0] == 0 && currColor[1] == 0 && currColor[2] == 255, true, {0, 255, 255}},
         {"Y", "Yellow Color", currColor[0] == 255 && currColor[1] == 255 && currColor[2] == 0, true, {255, 255, 0}},
-        {"B", "Black Color", currColor[0] == 0 && currColor[1] == 0 && currColor[2] == 0, true, {0, 0, 0}},
+        {"I", "Indigo Color", currColor[0] == 75 && currColor[1] == 0 && currColor[2] == 130, true, {75, 0, 130}},
+        {"T", "Black Color", currColor[0] == 1 && currColor[1] == 1 && currColor[2] == 1, true, {1, 1, 1}},
         {"Z", "Undo", false, false, {0, 0, 0}},
         {"ESC", "Quit", false, false, {0, 0, 0}}
     };
