@@ -421,7 +421,7 @@ void drawTUI(SDL_Renderer* rend) {
     int yPos = 20;
     for (const auto& item : menuItems) {
         // Key text
-        SDL_Color keyColor = item.isActive ? SDL_Color{ 255, 255, 0, 255 } : // Yellow for active
+        SDL_Color keyColor = item.isActive ? SDL_Color{ 255, 165, 0, 255 } : // Orange for active
             (item.isColor ? SDL_Color{ item.color[0], item.color[1], item.color[2], 255 } : SDL_Color{ 0, 0, 0, 255 });
 
         SDL_Surface* keySurface = TTF_RenderText_Solid(font, item.key.c_str(), keyColor);
@@ -431,7 +431,7 @@ void drawTUI(SDL_Renderer* rend) {
                 int keyW, keyH;
                 SDL_QueryTexture(keyTexture, nullptr, nullptr, &keyW, &keyH);
                 SDL_Rect keyRect = { CANVAS_WIDTH + 10, yPos, keyW, keyH };
-                SDL_RenderCopy(rend, keyTexture, nullptr, &keyRect);
+                SDL_RenderCopy(rend, keyTexture, nullptr, &keyRect); // SDL3 RenderTexture name makes much more sense now, all things considered.
                 SDL_DestroyTexture(keyTexture);
             }
             SDL_FreeSurface(keySurface);
