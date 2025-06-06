@@ -3,7 +3,7 @@
 #endif
 
 //N.B should probably add blue...
-
+//update added blue and then some.
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <vector>
