@@ -4,6 +4,7 @@
 
 //N.B should probably add blue...
 //update added blue and then some.
+//TODO create a Point struct. Might make the code a little cleaner, me thinks.
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <vector>
