@@ -1,177 +1,154 @@
-Simple Paint Application using SDL2
+# Paint
 
-![image](https://github.com/user-attachments/assets/be226a33-59be-428a-81b5-184679a1b9a5)
+![alt text](image.png)
+This is a sophisticated paint application built with SDL2, featuring a comprehensive GUI, layer management, and professional-grade tools. The project evolved from Vikash Kumar's OpenGL tutorials on Udemy and has been significantly enhanced with modern features and bug fixes. The documentation was created with assistance from DeepSeek-R1 AI assistant.
 
+## Key Improvements Over Previous Versions
 
-This is an enhanced paint application built with SDL2, featuring a text-based user interface (TUI), essential drawing tools, and color options. The project was inspired by Vikash Kumar's OpenGL tutorials on Udemy, and the documentation was created with assistance from DeepSeek-R1 AI assistant.
-Key Enhancements
+- **Professional GUI**: Replaced basic TUI with Dear ImGui interface
+- **Robust Layer System**: Added layer locking, duplication, and blending modes
+- **Advanced Tools**: Implemented gradient tool, text tool with font options, and selection tools
+- **Critical Bug Fixes**: Resolved memory leaks, coordinate system issues, and flood fill algorithm
+- **Fedora Compatibility**: Tested and optimized for Fedora 38
+- **Self-Contained Dependencies**: Option to build SDL2 locally
 
-    🖥️ Text User Interface (TUI): Right-side panel showing available tools and active selections
+## Features
 
-    🎨 Improved Visual Feedback: Active tools highlighted in yellow
+- **Professional GUI**: Modern interface with panels for tools, layers, and properties
+- **Layer Management**: Create, duplicate, reorder, and blend layers with various modes
+- **Drawing Tools**:
+  - Pencil with adjustable size
+  - Eraser with size control
+  - Shapes: Line, Rectangle, Circle, Triangle
+  - Gradient tool (linear, radial, angular)
+  - Text tool with font customization
+  - Selection tools with copy/paste
+- **Color System**: Primary/secondary colors with swapping
+- **Undo/Redo**: Comprehensive history system
+- **File Operations**: Open/save images (PNG, JPG, BMP)
+- **Canvas Control**: Dynamic resizing and panning
 
-    📐 Canvas Area: Dedicated drawing space (1080x720) with separate UI area
+## Dependencies
 
-    🔤 Font Rendering: Using SDL_ttf for text display
+- SDL2 (Simple DirectMedia Layer)
+- SDL2_ttf (TrueType Font support)
+- SDL2_image (Image loading support)
+- Dear ImGui (Immediate mode GUI)
+- TinyFileDialogs (Native file dialogs)
 
-    🛡️ Boundary Checking: Tools only work within canvas area
+## Installation
 
-    📱 Responsive Design: Better window positioning and scaling
+### Fedora
 
-Features
-
-    🖌️ Drawing Tools: Pencil, Eraser, Line, Rectangle, and Paint Bucket (flood fill)
-
-    🎨 Color Selection: Black, Red, Green, Yellow
-
-    ↩️ Undo Function: Reverse your last action
-
-    🖱️ Intuitive Interface: Keyboard shortcuts + mouse drawing
-
-    ⚡ Real-time Preview: See your drawing as you create it
-
-    🔠 Tool Status Display: Visual indication of active tool/color
-
-Dependencies
-
-    SDL2 (Simple DirectMedia Layer)
-
-    SDL2_ttf (TrueType Font support)
-
-Installation
-Windows
-
-    Install vcpkg
-
-    Install dependencies:
-    powershell
-
-vcpkg install sdl2 sdl2-ttf
-
-Clone repository:
-bash
-
+```bash
+sudo dnf install clang cmake gcc-c++ make libtool autoconf automake
 git clone https://github.com/yourusername/sdl-paint-app.git
+cd sdl-paint-app
+python setup.py
+```
 
-Compile with:
-bash
+### Other Linux Distributions
 
-    g++ src/main.cpp -Iinclude -Llib -lSDL2 -lSDL2_ttf -o sdl-paint.exe
-
-Linux
-
-    Install dependencies:
-    bash
-
+```bash
 # Debian/Ubuntu
-sudo apt install libsdl2-dev libsdl2-ttf-dev g++
+sudo apt install libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev git python3
 
 # Fedora
-sudo dnf install SDL2-devel SDL2_ttf-devel gcc-c++
+sudo dnf install SDL2-devel SDL2_ttf-devel SDL2_image-devel git python3
 
-Clone repository:
-bash
+# Clone and setup
+git clone https://github.com/Euclidae/Paint.git
+cd Paint
+python setup.py
+python3 setup.py #for linux users
+```
+# Warning the python SDL2 bits of the script are not complete. You will have to install them yourself.
+## Building
 
-git clone https://github.com/yourusername/sdl-paint-app.git
+The Makefile supports both system and local SDL2 installations:
 
-Compile with:
-bash
+```bash
+# Build with system SDL2 (default)
+make
 
-    g++ src/main.cpp -lSDL2 -lSDL2_ttf -o sdl-paint
+# Build with local SDL2
+make USE_LOCAL_SDL=1
 
-Usage
+# Run the application
+./bin/paint
+```
 
-    Place arial.ttf in the same directory as the executable
+## Usage
 
-    Run the application:
-    bash
+### Interface Overview
+- **Left Area**: Drawing canvas (adjustable size)
+- **Right Panel**: Tools and properties
+- **Top Menu**: File operations and editing commands
 
-    # Windows
-    sdl-paint.exe
+### Tool Selection (Keyboard Shortcuts)
+- `P`: Pencil Tool
+- `E`: Eraser Tool
+- `L`: Line Tool
+- `R`: Rectangle Tool
+- `C`: Circle Tool
+- `T`: Triangle Tool
+- `G`: Gradient Tool
+- `S`: Selection Tool
+- `F`: Paint Bucket (Flood Fill)
+- `ESC`: Clear selection or reset tool
 
-    # Linux
-    ./sdl-paint
+### Advanced Features
+- **Layer Management**: Right panel for layer operations
+- **Undo/Redo**: `Ctrl+Z` / `Ctrl+Y`
+- **Color Swap**: `X` to swap primary/secondary colors
+- **Brush Size**: Mouse wheel to adjust
+- **Canvas Resizing**: Input fields in properties panel
 
-    Tool Selection (Keyboard Shortcuts):
+## Technical Notes
 
-        P: Pencil Tool
+### Key Fixes and Improvements
+- **Memory Management**: Fixed texture leaks and improper cleanup
+- **Flood Fill**: Replaced recursive algorithm with scanline method
+- **Coordinate System**: Corrected canvas offset calculations
+- **Font Handling**: Added caching for different font styles/sizes
+- **Layer Rendering**: Fixed blend mode implementation
+- **Selection Tools**: Added proper move/copy/paste functionality
 
-        E: Eraser Tool
+### Fedora-Specific Considerations
+- Added workarounds for Fedora's library paths
+- Included Fedora-compatible build flags
+- Resolved font loading issues on Fedora
 
-        L: Line Tool
+### Performance Optimizations
+- Texture-based undo/redo system
+- Gradient tool optimized with fixed steps
+- Font caching for text rendering
+- Layer compositing improvements
 
-        F: Paint Bucket (Flood Fill)
+## File Structure
 
-        Q: Rectangle Tool
-
-        Z: Undo last action
-
-        ESC: Quit application
-
-    Color Selection:
-
-        R: Red
-
-        G: Green
-
-        B: Black
-
-        Y: Yellow
-
-    Interface:
-
-        Left area: Drawing canvas (1080x720 pixels)
-
-        Right panel: Tool information and status
-
-        Active tools highlighted in yellow
-
-Technical Notes
-
-    Font Handling:
-
-        Looks for arial.ttf in current directory 
-
-        Checks common system font paths as fallback
-
-        TTF initialization is handled automatically
-
-    Canvas Boundaries:
-
-        Drawing only occurs within canvas area (left 1080px)
-
-        UI panel (right 200px) handles tool information
-
-    Enhanced Features:
-
-        Active tool highlighting in TUI
-
-        Real-time preview for all tools
-
-        Robust input validation
-
-        Improved memory management
-
-File Structure
-
+```
 sdl-paint-app/
-├── main.cpp         # Main application code
-├── arial.ttf            # Font file (required)
-└── README.md            # This documentation
+├── bin/               # Compiled binary
+├── imgui/             # Dear ImGui files
+├── tinyfiledialogs/   # TinyFileDialogs files
+├── sdl/               # Local SDL2 build (optional)
+├── main.cpp           # Main application code
+├── Makefile           # Build configuration
+├── setup.py           # Dependency setup script
+└── README.md          # This documentation
+```
 
-Acknowledgments
+## Acknowledgments
 
-    Inspired by Vikash Kumar's OpenGL tutorials on Udemy
+- Inspired by Vikash Kumar's OpenGL tutorials on Udemy
+- Initial version based on Dr. Mike Shah's C++ series
+- Dear ImGui by Omar Cornut (special thanks to TheCherno for tutorials)
+- SDL2 by Sam Lantinga and contributors
+- TinyFileDialogs by Guillaume Vareille
+- DeepSeek-R1 AI assistant for documentation support
 
-    Also inspired by Dr. Mike Shah's C++ series.
-
-    Documentation created with assistance from DeepSeek-R1 AI assistant
-
-    Uses Simple DirectMedia Layer (SDL2) and SDL_ttf libraries
-
-    Includes Arial font (Microsoft font license)
-
-License
+## License
 
 MIT License
 

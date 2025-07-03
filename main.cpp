@@ -19,7 +19,7 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_sdlrenderer2.h"
-#include "tinyfiledialogs/tinyfiledialogs.h"
+#include "tinyfiledialogs/tinyfiledialogs.h" // SDL3 would have been much better.
 #include <vector>
 #include <functional>
 #include <iostream>
