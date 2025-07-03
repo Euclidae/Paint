@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Create window
-    window = SDL_CreateWindow("Advanced Image Editor", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+    window = SDL_CreateWindo("Paint", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              CANVAS_WIDTH + TUI_WIDTH, CANVAS_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window) {
         std::cerr << "Window could not be created! Error: " << SDL_GetError() << std::endl;
