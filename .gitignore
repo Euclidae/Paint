@@ -3,3 +3,7 @@
 /tinyfiledialogs
 /imgui.ini
 /.ropeproject
+/oldmain.cpp
+/Makefile
+.gitignore
+
