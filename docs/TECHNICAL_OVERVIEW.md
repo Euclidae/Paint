@@ -1,4 +1,4 @@
-# Paint1 Technical Overview
+# Enough Technical Overview
 
 ## Architecture
 
@@ -189,7 +189,7 @@ The application is single-threaded with all operations on the main thread:
 ### Manual Testing
 - **Tool Validation**: Each tool tested with various inputs
 - **Memory Leaks**: Valgrind testing on Linux
-- **Cross-Platform**: Testing on multiple operating systems
+- **Cross-Platform**: Testing on multiple operating systems (Windows + Fedora)
 
 ### Error Scenarios
 - **Invalid Input**: Out-of-bounds coordinates
@@ -199,7 +199,7 @@ The application is single-threaded with all operations on the main thread:
 ## Future Improvements
 
 ### Performance
-- **GPU Acceleration**: Consider OpenGL/Vulkan backend
+- **GPU Acceleration**: Consider OpenGL or upgrading to SDL3
 - **Multi-threading**: Background operations for file I/O
 - **Memory Pooling**: Reduce allocation overhead
 

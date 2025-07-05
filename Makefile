@@ -1,4 +1,4 @@
-# Paint1 Makefile - Fixed for current directory structure
+# Enough Makefile - Fixed for current directory structure
 CXX = g++
 CXXFLAGS = -Wall -Wextra -g -std=c++17
 LIBS = -lSDL2 -lSDL2_ttf -lSDL2_image -lpthread -lGL
@@ -22,7 +22,7 @@ IMGUI_SOURCES = $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/
 TFD_SOURCES = $(TFD_DIR)/tinyfiledialogs.c
 
 # Target
-TARGET = $(BIN_DIR)/paint1
+TARGET = $(BIN_DIR)/enough
 
 .PHONY: all clean install deps-check deps-install help force
 
@@ -126,4 +126,4 @@ help:
 	@echo "Quick start:"
 	@echo "1. make deps-install  # (install SDL2 if needed)"
 	@echo "2. make all           # (build the project)"
-	@echo "3. ./bin/paint1       # (run the application)"
+	@echo "3. ./bin/enough       # (run the application)"
