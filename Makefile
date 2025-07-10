@@ -1,6 +1,6 @@
-# Enough Makefile - Fixed for current directory structure
+# Paint Makefile - Updated for OOP architecture
 CXX = g++
-CXXFLAGS = -Wall -Wextra -g -std=c++17
+CXXFLAGS = -Wall -Wextra -g -std=c++20
 LIBS = -lSDL2 -lSDL2_ttf -lSDL2_image -lpthread -lGL
 
 # Directories (imgui and tinyfiledialogs are in current directory)
@@ -10,19 +10,19 @@ TFD_DIR = tinyfiledialogs
 BIN_DIR = bin
 
 # Include paths
-INCLUDES = -I$(IMGUI_DIR) -I$(TFD_DIR) -I$(SRC_DIR)
+INCLUDES = -I$(IMGUI_DIR) -I$(TFD_DIR) -I$(SRC_DIR) -Icanvas -Itools -Ieditor -Iui
 
 # Try to use sdl2-config if available, otherwise use direct flags
 SDL2_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null || echo "-I/usr/include/SDL2 -D_REENTRANT")
 SDL2_LIBS := $(shell sdl2-config --libs 2>/dev/null || echo "-lSDL2")
 
 # Source files
-SOURCES = main.cpp canvas.cpp tools.cpp editor.cpp ui.cpp
+SOURCES = main.cpp canvas/Canvas.cpp canvas/Layer.cpp tools/ToolManager.cpp editor/Editor.cpp ui/UI.cpp
 IMGUI_SOURCES = $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp $(IMGUI_DIR)/imgui_impl_sdl2.cpp $(IMGUI_DIR)/imgui_impl_sdlrenderer2.cpp
 TFD_SOURCES = $(TFD_DIR)/tinyfiledialogs.c
 
 # Target
-TARGET = $(BIN_DIR)/enough
+TARGET = $(BIN_DIR)/EnoughImageEditor
 
 .PHONY: all clean install deps-check deps-install help force
 
@@ -110,7 +110,7 @@ deps-install:
 force: $(TARGET)
 
 help:
-	@echo "Enough Build System"
+	@echo "Paint Build System"
 	@echo "=================="
 	@echo "make all         - Build the project (default)"
 	@echo "make clean       - Clean build files"
@@ -126,4 +126,4 @@ help:
 	@echo "Quick start:"
 	@echo "1. make deps-install  # (install SDL2 if needed)"
 	@echo "2. make all           # (build the project)"
-	@echo "3. ./bin/enough       # (run the application)"
+	@echo "3. ./bin/EnoughImageEditor        # (run the application)"

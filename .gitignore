@@ -6,4 +6,5 @@
 /oldmain.cpp
 /Makefile
 .gitignore
-
+*.o
+/.vscode
