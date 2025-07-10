@@ -27,9 +27,8 @@
 #include <algorithm>
 #include <cmath>
 
-// Helper functions for common operations
+
 namespace Paint {
-    // Initialize all subsystems
     inline bool Initialize() {
         if (SDL_Init(SDL_INIT_VIDEO)) {
             std::cerr << "SDL init failed: " << SDL_GetError() << std::endl;
@@ -50,7 +49,6 @@ namespace Paint {
         return true;
     }
 
-    // Cleanup all subsystems
     inline void Cleanup() {
         GetUI().cleanup();
         GetEditor().cleanup();
@@ -62,7 +60,6 @@ namespace Paint {
         SDL_Quit();
     }
 
-    // Create a window and renderer
     inline bool CreateWindowAndRenderer(SDL_Window** window, SDL_Renderer** renderer, const char* title = "Paint") {
         Canvas& canvas = GetCanvas();
 
@@ -94,12 +91,10 @@ namespace Paint {
         return true;
     }
 
-    // Initialize ImGui (controlled by ui/UI.cpp)
     inline bool InitializeImGui(SDL_Window* window, SDL_Renderer* renderer) {
         return UI::getInstance().init(window, renderer);
     }
 
-    // Cleanup ImGui
     inline void CleanupImGui() {
         // ImGui_ImplSDLRenderer2_Shutdown();
         // ImGui_ImplSDL2_Shutdown();

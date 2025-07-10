@@ -35,11 +35,10 @@ Layer::Layer(Layer&& other) noexcept
 }
 
 Layer& Layer::operator=(Layer&& other) noexcept {
+    // && is just move semantics. Think Rust's ownership.
     if (this != &other) {
-        // Clean up existing resources
         cleanup();
         
-        // Transfer ownership
         m_texture = other.m_texture;
         m_name = std::move(other.m_name);
         m_opacity = other.m_opacity;
@@ -54,7 +53,6 @@ Layer& Layer::operator=(Layer&& other) noexcept {
         m_y = other.m_y;
         m_maskDirty = other.m_maskDirty;
         
-        // Reset the moved-from object
         other.m_texture = nullptr;
         other.m_mask = nullptr;
         other.m_x = 0;
@@ -76,7 +74,7 @@ void Layer::setMask(SDL_Texture* mask) {
         SDL_DestroyTexture(m_mask);
     }
     m_mask = mask;
-    m_maskDirty = true; // Mark mask as needing updates
+    m_maskDirty = true;
 }
 
 void Layer::duplicate(Layer& newLayer) const {
@@ -90,39 +88,31 @@ void Layer::duplicate(Layer& newLayer) const {
     newLayer.m_useMask = m_useMask;
     newLayer.m_x = m_x;
     newLayer.m_y = m_y;
-    newLayer.m_maskDirty = false; // New layer starts clean
+    newLayer.m_maskDirty = false;
     
-    // We don't copy the texture or mask here because they should be
-    // duplicated at a higher level where the renderer is available
+    // We don't copy the texture or mask here because they should be duplicated at a higher level where the renderer is available
 }
 
 void Layer::clear(SDL_Renderer* renderer) {
     if (!m_texture) return;
     
-    // Get texture dimensions
     int width, height;
     SDL_QueryTexture(m_texture, nullptr, nullptr, &width, &height);
     
-    // Create a new target for rendering
     SDL_Texture* originalTarget = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, m_texture);
     
-    // Clear the texture with transparency
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
-    
-    // Restore the original render target
     SDL_SetRenderTarget(renderer, originalTarget);
 }
 
 void Layer::createEmptyMask(SDL_Renderer* renderer, int width, int height) {
-    // Clean up existing mask first
     if (m_mask) {
         SDL_DestroyTexture(m_mask);
     }
     
-    // Create new mask texture - white means fully visible
     m_mask = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, 
                                SDL_TEXTUREACCESS_TARGET, width, height);
     
@@ -131,13 +121,11 @@ void Layer::createEmptyMask(SDL_Renderer* renderer, int width, int height) {
         return;
     }
     
-    // Set up the mask for transparency blending
     SDL_SetTextureBlendMode(m_mask, SDL_BLENDMODE_BLEND);
     
-    // Fill with white (fully opaque) - this is the "reveal all" default
     SDL_Texture* originalTarget = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, m_mask);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White = show everything
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderClear(renderer);
     SDL_SetRenderTarget(renderer, originalTarget);
     
@@ -146,8 +134,7 @@ void Layer::createEmptyMask(SDL_Renderer* renderer, int width, int height) {
 
 void Layer::clearMask(SDL_Renderer* renderer) {
     if (!m_mask) return;
-    
-    // Clear to white (show everything) - this is non-destructive
+
     SDL_Texture* originalTarget = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, m_mask);
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -160,11 +147,9 @@ void Layer::clearMask(SDL_Renderer* renderer) {
 void Layer::invertMask(SDL_Renderer* renderer) {
     if (!m_mask) return;
     
-    // Get mask dimensions
     int width, height;
     SDL_QueryTexture(m_mask, nullptr, nullptr, &width, &height);
     
-    // Read current mask pixels
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
     
@@ -173,15 +158,13 @@ void Layer::invertMask(SDL_Renderer* renderer) {
     SDL_Texture* originalTarget = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, m_mask);
     
-    // HACK: Not sure why SDL needs this but it prevents weird artifacts
+
     if (SDL_RenderReadPixels(renderer, nullptr, SDL_PIXELFORMAT_RGBA8888, 
                            surface->pixels, surface->pitch) != 0) {
         SDL_FreeSurface(surface);
         SDL_SetRenderTarget(renderer, originalTarget);
         return;
     }
-    
-    // Invert the mask pixels
     SDL_LockSurface(surface);
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
     
@@ -189,7 +172,7 @@ void Layer::invertMask(SDL_Renderer* renderer) {
         Uint8 r, g, b, a;
         SDL_GetRGBA(pixels[i], surface->format, &r, &g, &b, &a);
         
-        // Invert RGB channels but keep alpha
+
         r = 255 - r;
         g = 255 - g;
         b = 255 - b;
@@ -199,7 +182,7 @@ void Layer::invertMask(SDL_Renderer* renderer) {
     
     SDL_UnlockSurface(surface);
     
-    // Create new texture from inverted surface
+
     SDL_Texture* newMask = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
     
@@ -216,11 +199,9 @@ void Layer::invertMask(SDL_Renderer* renderer) {
 void Layer::applyMaskToTexture(SDL_Renderer* renderer) {
     if (!m_mask || !m_texture) return;
     
-    // Get texture dimensions
     int width, height;
     SDL_QueryTexture(m_texture, nullptr, nullptr, &width, &height);
     
-    // Create a temporary texture for the result
     SDL_Texture* tempTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
                                                 SDL_TEXTUREACCESS_TARGET, width, height);
     
@@ -229,25 +210,22 @@ void Layer::applyMaskToTexture(SDL_Renderer* renderer) {
     SDL_Texture* originalTarget = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, tempTexture);
     
-    // Clear the temp texture
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
     
-    // TODO: This is a simplified mask application - could be more sophisticated
-    // First render the original texture
+
+
     SDL_RenderCopy(renderer, m_texture, nullptr, nullptr);
     
-    // Then apply the mask using multiply blend mode
+
     SDL_SetTextureBlendMode(m_mask, SDL_BLENDMODE_MOD);
     SDL_RenderCopy(renderer, m_mask, nullptr, nullptr);
     
     SDL_SetRenderTarget(renderer, originalTarget);
-    
-    // Replace the original texture with the masked version
+
     SDL_DestroyTexture(m_texture);
     m_texture = tempTexture;
     
-    // Clean up the mask since it's been applied
     SDL_DestroyTexture(m_mask);
     m_mask = nullptr;
     m_useMask = false;
@@ -256,28 +234,22 @@ void Layer::applyMaskToTexture(SDL_Renderer* renderer) {
 
 void Layer::renderWithMask(SDL_Renderer* renderer, SDL_Rect destRect, float globalOpacity) {
     if (!m_texture || !m_visible) return;
-    
-    // Calculate final opacity
     float finalOpacity = m_opacity * globalOpacity;
     Uint8 alpha = static_cast<Uint8>(finalOpacity * 255);
     
     if (!m_mask || !m_useMask) {
-        // Simple render without mask
+
         SDL_SetTextureAlphaMod(m_texture, alpha);
         SDL_RenderCopy(renderer, m_texture, nullptr, &destRect);
         return;
     }
     
-    // PERF: Could optimize this by caching the composited result
-    // But for now, just render with mask each time
-    
-    // Create temporary texture for masked rendering
     SDL_Texture* tempTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
                                                 SDL_TEXTUREACCESS_TARGET, 
                                                 destRect.w, destRect.h);
     
     if (!tempTexture) {
-        // Fallback to rendering without mask
+
         SDL_SetTextureAlphaMod(m_texture, alpha);
         SDL_RenderCopy(renderer, m_texture, nullptr, &destRect);
         return;
@@ -286,26 +258,19 @@ void Layer::renderWithMask(SDL_Renderer* renderer, SDL_Rect destRect, float glob
     SDL_Texture* originalTarget = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, tempTexture);
     
-    // Clear temp texture
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
-    
-    // Render the layer content
+
     SDL_Rect fullRect = {0, 0, destRect.w, destRect.h};
     SDL_RenderCopy(renderer, m_texture, nullptr, &fullRect);
     
-    // Apply mask
     SDL_SetTextureBlendMode(m_mask, SDL_BLENDMODE_MOD);
     SDL_RenderCopy(renderer, m_mask, nullptr, &fullRect);
-    
-    // Restore original render target
+
     SDL_SetRenderTarget(renderer, originalTarget);
     
-    // Render the masked result with opacity
     SDL_SetTextureAlphaMod(tempTexture, alpha);
     SDL_RenderCopy(renderer, tempTexture, nullptr, &destRect);
-    
-    // Clean up
     SDL_DestroyTexture(tempTexture);
 }
 

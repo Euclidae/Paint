@@ -6,7 +6,6 @@
 #include <map>
 #include <memory>
 
-// Forward declarations
 class Layer;
 struct TextState;
 class Tool;
@@ -67,21 +66,20 @@ public:
     void applyGradientMap(SDL_Color startColor, SDL_Color endColor);
     void addMaskToLayer(int layerIndex);
     
-    // Smart object selection and transform
+    // Smart object selection and transform. I want users to select and manipulate layers directly
     int findLayerAtPoint(int x, int y); // Returns layer index with content at point
-    void selectLayerAtPoint(int x, int y); // Auto-select layer with content
-    void showTransformBox(int layerIndex); // Show transform handles around layer
-    void hideTransformBox(); // Hide transform handles
-    void handleTransformDrag(const SDL_Event& event, const SDL_Point& mousePos);
-    void drawTransformBox(SDL_Renderer* renderer); // Draw the transform handles
-    void applyTransform(); // Apply current transform to selected layer
-    void deselectAll(); // Clear all selections and hide transform boxes
+    void selectLayerAtPoint(int x, int y); // Auto-select layer with content under cursor
+    void showTransformBox(int layerIndex); // Show transform handles around layer for resizing/rotating
+    void hideTransformBox(); // Hide transform handles when not needed
+    void handleTransformDrag(const SDL_Event& event, const SDL_Point& mousePos); // Process transform handle interactions
+    void drawTransformBox(SDL_Renderer* renderer); // Draw the transform handles and bounding box
+    void applyTransform(); // Apply current transform to selected layer and finalize changes
+    void deselectAll(); // Clear all selections and hide transform boxes when clicking elsewhere
     
-    // Font handling
-    void clearFontCache();
-    TTF_Font* getFont(int size, bool bold, bool italic);
+    void clearFontCache(); 
+    TTF_Font* getFont(int size, bool bold, bool italic); // Get or load a font with specified properties
     
-    // Getters and setters
+
     SDL_Renderer* getRenderer() const { return m_renderer; }
     int getWidth() const { return m_width; }
     int getHeight() const { return m_height; }
@@ -105,12 +103,11 @@ public:
     SDL_Rect getTransformRect() const { return m_transformRect; }
     
 private:
-    Canvas(); // Private constructor for singleton
+    Canvas(); 
     ~Canvas() = default;
     Canvas(const Canvas&) = delete;
     Canvas& operator=(const Canvas&) = delete;
     
-    // Core properties
     SDL_Renderer* m_renderer = nullptr;
     SDL_Texture* m_canvasBuffer = nullptr;
     int m_width = 1280;
@@ -128,8 +125,7 @@ private:
     FilterType m_lastAppliedFilter = FilterType::NONE;
     bool m_filterInProgress = false;
     
-    // HACK: Buffer image system to prevent filter stacking segfaults
-    // Create hidden buffer, apply filter, then replace - genius workaround!
+    // See impl file for explanation as to why we need this.
     SDL_Texture* m_filterBuffer = nullptr;
     void createFilterBuffer();
     void applyFilterBuffer();
@@ -157,18 +153,15 @@ private:
     
     SDL_Surface* resizeImage(SDL_Surface* src, int newWidth, int newHeight);
     
-    // Helper functions for layer flipping
     void flipLayerHorizontal(Layer* layer);
     void flipLayerVertical(Layer* layer);
-    
-    // Helper functions for smart object selection
     bool hasContentAtPoint(SDL_Texture* texture, int x, int y);
     SDL_Rect calculateLayerBounds(Layer* layer);
     int getTransformHandleAtPoint(int x, int y); // Returns handle index or -1
     void updateTransformRect(); // Update transform box based on layer content
 };
 
-// Helper function to get a reference to the canvas instance
+
 inline Canvas& GetCanvas() {
     return Canvas::getInstance();
 }

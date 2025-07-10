@@ -9,20 +9,14 @@
 #include <utility>
 #include <set>
 
-// TODO: Clean up this file, it's getting messy
-// N.B: Some of these drawing functions could use optimization
-// COMPLETE - Brush tool
-
-// Singleton pattern - yeah I know globals are bad but this works
-[[nodiscard("This is a singleton so it needs to be referenced.")]]ToolManager& ToolManager::getInstance() {
+ToolManager& ToolManager::getInstance() {
     static ToolManager instance;
     return instance;
 }
 
 ToolManager::ToolManager() : m_currentTool(nullptr), m_currentToolIndex(0) {
-    // Initialize with default colors
-    m_primaryColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);  // black
-    m_secondaryColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // white
+    m_primaryColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    m_secondaryColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 ToolManager::~ToolManager() {
@@ -44,7 +38,6 @@ void ToolManager::init() {
     m_tools.push_back(std::make_unique<HealingTool>());
     m_tools.push_back(std::make_unique<CloneStampTool>());
 
-    // Set default tool
     setCurrentTool(0);
 }
 
@@ -70,15 +63,12 @@ void ToolManager::handleSDLEvent(const SDL_Event& event) {
             break;
 
         case SDL_KEYDOWN:
-            // Handle escape key to cancel current tool operation
             if (event.key.keysym.sym == SDLK_ESCAPE) {
                 m_currentTool->cancel();
             }
-            // Handle Ctrl+D to deselect all selections
             else if (event.key.keysym.sym == SDLK_d && (SDL_GetModState() & KMOD_CTRL)) {
                 GetCanvas().deselectAll();
             }
-            // Handle Delete key for flood selection - delete selected pixels
             else if (event.key.keysym.sym == SDLK_DELETE && m_currentToolIndex == 8) {
                 FloodSelectionTool* floodTool = static_cast<FloodSelectionTool*>(m_currentTool);
                 floodTool->deleteSelectedPixels();
@@ -95,23 +85,20 @@ void ToolManager::render(SDL_Renderer* renderer) {
 
 void ToolManager::setCurrentTool(int toolIndex) {
     if (toolIndex < 0 || toolIndex >= static_cast<int>(m_tools.size())) {
-        return;  // bail out if invalid index
+        return;
     }
 
     m_currentToolIndex = toolIndex;
     m_currentTool = m_tools[toolIndex].get();
 
-    // Make sure tool has current color
     m_currentTool->setColor(m_primaryColor);
 
-    // Set size based on tool type - eraser needs bigger default
-    if (toolIndex == 1) { // Eraser tool
+    if (toolIndex == 1) {
         m_currentTool->setSize(m_eraserSize);
     } else {
         m_currentTool->setSize(m_brushSize);
     }
 
-    // Set gradient tool's secondary color if applicable
     GradientTool* gradientTool = getGradientTool();
     if (gradientTool) {
         gradientTool->setSecondaryColor(m_secondaryColor);
@@ -132,7 +119,6 @@ ImVec4 ToolManager::getPrimaryColor() const {
 void ToolManager::setSecondaryColor(const ImVec4& color) {
     m_secondaryColor = color;
 
-    // Update gradient tool if it exists
     GradientTool* gradientTool = getGradientTool();
     if (gradientTool) {
         gradientTool->setSecondaryColor(color);
@@ -146,7 +132,6 @@ ImVec4 ToolManager::getSecondaryColor() const {
 void ToolManager::setBrushSize(int size) {
     m_brushSize = size;
 
-    // Update current tool if it's not an eraser
     if (m_currentTool && !dynamic_cast<EraserTool*>(m_currentTool)) {
         m_currentTool->setSize(size);
     }
@@ -159,7 +144,6 @@ int ToolManager::getBrushSize() const {
 void ToolManager::setEraserSize(int size) {
     m_eraserSize = size;
 
-    // Update current tool if it's an eraser
     if (m_currentTool && dynamic_cast<EraserTool*>(m_currentTool)) {
         m_currentTool->setSize(size);
     }
@@ -189,15 +173,13 @@ GradientTool* ToolManager::getGradientTool() const {
     return nullptr;
 }
 
-// Basic implementations of tool methods
+.
 
-// PencilTool implementation
 void PencilTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
 
-    // Draw a single point
     Canvas& canvas = Canvas::getInstance();
     Layer* activeLayer = canvas.getActiveLayer();
 
@@ -211,7 +193,6 @@ void PencilTool::handleMouseDown(const SDL_Event& event) {
             static_cast<Uint8>(m_color.z * 255),
             static_cast<Uint8>(m_color.w * 255));
 
-        // Draw a filled circle for the brush tip
         const int radius = m_size / 2;
         for (int y = -radius; y <= radius; y++) {
             for (int x = -radius; x <= radius; x++) {
@@ -226,7 +207,7 @@ void PencilTool::handleMouseDown(const SDL_Event& event) {
         SDL_SetRenderTarget(renderer, nullptr);
     }
 
-    // Save state for undo
+    
     Editor::getInstance().saveUndoState();
 }
 
@@ -248,18 +229,15 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
             static_cast<Uint8>(m_color.z * 255),
             static_cast<Uint8>(m_color.w * 255));
 
-        // Draw line from previous position to current position
         const int radius = m_size / 2;
         const float dist = std::sqrt(
             (newPos.x - m_currentPos.x) * (newPos.x - m_currentPos.x) +
             (newPos.y - m_currentPos.y) * (newPos.y - m_currentPos.y)
         );
 
-        // Different brush types give different drawing effects
         switch (m_brushType) {
-            case 0: // Normal brush - solid circle
+            case 0:
                 if (dist < 1.0f) {
-                    // Just draw a single point if we didn't move much
                     for (int y = -radius; y <= radius; y++) {
                         for (int x = -radius; x <= radius; x++) {
                             if (x*x + y*y <= radius*radius) {
@@ -270,7 +248,6 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
                         }
                     }
                 } else {
-                    // Draw a thick line by interpolating between points
                     const int steps = static_cast<int>(dist) + 1;
                     for (int i = 0; i <= steps; i++) {
                         float t = static_cast<float>(i) / steps;
@@ -290,7 +267,7 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
                 }
                 break;
 
-            case 1: // Textured brush - random dot pattern
+            case 1:
                 {
                     const int steps = static_cast<int>(dist) + 1;
                     for (int i = 0; i <= steps; i++) {
@@ -298,12 +275,10 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
                         float x = m_currentPos.x + t * (newPos.x - m_currentPos.x);
                         float y = m_currentPos.y + t * (newPos.y - m_currentPos.y);
 
-                        // Random texture pattern - skip some pixels for texture effect
                         for (int dy = -radius; dy <= radius; dy++) {
                             for (int dx = -radius; dx <= radius; dx++) {
                                 if (dx*dx + dy*dy <= radius*radius) {
-                                    // Skip some pixels randomly for texture
-                                    if (rand() % 3 == 0) {  // 1/3 chance to draw
+                                    if (rand() % 3 == 0) {
                                         SDL_RenderDrawPoint(renderer,
                                             static_cast<int>(x) + dx,
                                             static_cast<int>(y) + dy);
@@ -315,7 +290,7 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
                 }
                 break;
 
-            case 2: // Soft brush - gradient falloff
+            case 2:
                 {
                     const int steps = static_cast<int>(dist) + 1;
                     for (int i = 0; i <= steps; i++) {
@@ -323,15 +298,12 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
                         float x = m_currentPos.x + t * (newPos.x - m_currentPos.x);
                         float y = m_currentPos.y + t * (newPos.y - m_currentPos.y);
 
-                        // Soft brush with alpha falloff
                         for (int dy = -radius; dy <= radius; dy++) {
                             for (int dx = -radius; dx <= radius; dx++) {
                                 float distance = std::sqrt(dx*dx + dy*dy);
                                 if (distance <= radius) {
-                                    // Calculate alpha based on distance from center
                                     float alpha = 1.0f - (distance / radius);
 
-                                    // Set color with calculated alpha
                                     SDL_SetRenderDrawColor(renderer,
                                         static_cast<Uint8>(m_color.x * 255),
                                         static_cast<Uint8>(m_color.y * 255),
@@ -349,38 +321,7 @@ void PencilTool::handleMouseMove(const SDL_Event& event) {
                 break;
         }
 
-        /* Old single brush implementation - kept for reference
-        if (dist < 1.0f) {
-            // Just draw a single point if we didn't move much
-            for (int y = -radius; y <= radius; y++) {
-                for (int x = -radius; x <= radius; x++) {
-                    if (x*x + y*y <= radius*radius) {
-                        SDL_RenderDrawPoint(renderer,
-                            static_cast<int>(newPos.x) + x,
-                            static_cast<int>(newPos.y) + y);
-                    }
-                }
-            }
-        } else {
-            // Draw a thick line by interpolating between points
-            const int steps = static_cast<int>(dist) + 1;
-            for (int i = 0; i <= steps; i++) {
-                float t = static_cast<float>(i) / steps;
-                float x = m_currentPos.x + t * (newPos.x - m_currentPos.x);
-                float y = m_currentPos.y + t * (newPos.y - m_currentPos.y);
 
-                for (int dy = -radius; dy <= radius; dy++) {
-                    for (int dx = -radius; dx <= radius; dx++) {
-                        if (dx*dx + dy*dy <= radius*radius) {
-                            SDL_RenderDrawPoint(renderer,
-                                static_cast<int>(x) + dx,
-                                static_cast<int>(y) + dy);
-                        }
-                    }
-                }
-            }
-        }
-        */
 
         SDL_SetRenderTarget(renderer, nullptr);
     }
@@ -393,17 +334,17 @@ void PencilTool::handleMouseUp(const SDL_Event&) {
 }
 
 void PencilTool::render(SDL_Renderer* renderer) {
-    // Preview brush size when hovering - helps with different brush types
+
     if (!m_isDrawing) {
-        // Show a preview circle of the brush size
+
         SDL_SetRenderDrawColor(renderer, 100, 100, 100, 128);
         const int radius = m_size / 2;
 
-        // Get mouse position for preview
+
         int mouseX, mouseY;
         SDL_GetMouseState(&mouseX, &mouseY);
 
-        // Draw preview circle outline
+
         for (int angle = 0; angle < 360; angle += 5) {
             float rad = angle * M_PI / 180.0f;
             int x = mouseX + (int)(radius * cos(rad));
@@ -413,7 +354,7 @@ void PencilTool::render(SDL_Renderer* renderer) {
     }
 }
 
-// EraserTool implementation
+
 void EraserTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
@@ -426,11 +367,9 @@ void EraserTool::handleMouseDown(const SDL_Event& event) {
         SDL_Renderer* renderer = canvas.getRenderer();
         SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
-        // Set up blending for erasing (transparent)
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 
-        // Draw a filled circle for the eraser
         const int radius = m_size / 2;
         SDL_Rect rect = {
             static_cast<int>(m_currentPos.x) - radius,
@@ -443,7 +382,6 @@ void EraserTool::handleMouseDown(const SDL_Event& event) {
         SDL_SetRenderTarget(renderer, nullptr);
     }
 
-    // Save state for undo
     Editor::getInstance().saveUndoState();
 }
 
@@ -459,11 +397,9 @@ void EraserTool::handleMouseMove(const SDL_Event& event) {
         SDL_Renderer* renderer = canvas.getRenderer();
         SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
-        // Set up blending for erasing (transparent)
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 
-        // Draw line from previous position to current position
         const int radius = m_size / 2;
         const float dist = std::sqrt(
             (newPos.x - m_currentPos.x) * (newPos.x - m_currentPos.x) +
@@ -471,7 +407,6 @@ void EraserTool::handleMouseMove(const SDL_Event& event) {
         );
 
         if (dist < 1.0f) {
-            // Draw a single point if distance is very small
             SDL_Rect rect = {
                 static_cast<int>(newPos.x) - radius,
                 static_cast<int>(newPos.y) - radius,
@@ -480,7 +415,6 @@ void EraserTool::handleMouseMove(const SDL_Event& event) {
             };
             SDL_RenderFillRect(renderer, &rect);
         } else {
-            // Interpolate points for a smooth line
             const float step = 1.0f / dist;
             for (float t = 0; t <= 1.0f; t += step) {
                 float x = m_currentPos.x + (newPos.x - m_currentPos.x) * t;
@@ -506,13 +440,13 @@ void EraserTool::handleMouseUp(const SDL_Event&) {
     m_isDrawing = false;
 }
 
-// LineTool implementation
+
 void LineTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
 
-    // Save state for undo
+    
     Editor::getInstance().saveUndoState();
 }
 
@@ -537,10 +471,10 @@ void LineTool::handleMouseUp(const SDL_Event&) {
             static_cast<Uint8>(m_color.z * 255),
             static_cast<Uint8>(m_color.w * 255));
 
-        // Draw multiple lines with slight variations for artistic effect
+
         for (int lineNum = 0; lineNum < m_lineCount; lineNum++) {
-            // Add some randomness to each line - not too much though
-            float offsetX = (lineNum > 0) ? (rand() % 5 - 2) : 0;  // -2 to +2 pixels
+
+            float offsetX = (lineNum > 0) ? (rand() % 5 - 2) : 0;
             float offsetY = (lineNum > 0) ? (rand() % 5 - 2) : 0;
 
             ImVec2 start = ImVec2(m_startPos.x + offsetX, m_startPos.y + offsetY);
@@ -553,7 +487,6 @@ void LineTool::handleMouseUp(const SDL_Event&) {
             );
 
             if (dist < 1.0f) {
-                // Draw a single point if distance is very small
                 for (int y = -radius; y <= radius; y++) {
                     for (int x = -radius; x <= radius; x++) {
                         if (x*x + y*y <= radius*radius) {
@@ -564,7 +497,6 @@ void LineTool::handleMouseUp(const SDL_Event&) {
                     }
                 }
             } else {
-                // Draw a thick line by interpolation
                 const float step = 1.0f / dist;
                 for (float t = 0; t <= 1.0f; t += step) {
                     float x = start.x + (end.x - start.x) * t;
@@ -592,23 +524,22 @@ void LineTool::handleMouseUp(const SDL_Event&) {
 void LineTool::render(SDL_Renderer* renderer) {
     if (!m_isDrawing) return;
 
-    // Draw preview lines - show what will be drawn
+
     SDL_SetRenderDrawColor(renderer,
         static_cast<Uint8>(m_color.x * 255),
         static_cast<Uint8>(m_color.y * 255),
         static_cast<Uint8>(m_color.z * 255),
         static_cast<Uint8>(m_color.w * 255));
 
-    // Draw preview of multiple lines
+
     for (int lineNum = 0; lineNum < m_lineCount; lineNum++) {
-        // Show slight offsets in preview but don't make it too distracting
+
         float offsetX = (lineNum > 0) ? (lineNum - 1) * 0.5f : 0;
         float offsetY = (lineNum > 0) ? (lineNum - 1) * 0.5f : 0;
 
         ImVec2 start = ImVec2(m_startPos.x + offsetX, m_startPos.y + offsetY);
         ImVec2 end = ImVec2(m_currentPos.x + offsetX, m_currentPos.y + offsetY);
 
-        // Draw a thick line
         const int radius = m_size / 2;
         const float dist = std::sqrt(
             (end.x - start.x) * (end.x - start.x) +
@@ -616,7 +547,6 @@ void LineTool::render(SDL_Renderer* renderer) {
         );
 
     if (dist < 1.0f) {
-        // Draw a single point if distance is very small
         for (int y = -radius; y <= radius; y++) {
             for (int x = -radius; x <= radius; x++) {
                 if (x*x + y*y <= radius*radius) {
@@ -627,7 +557,6 @@ void LineTool::render(SDL_Renderer* renderer) {
             }
         }
     } else {
-        // Draw a thick line by interpolation
         const float step = 1.0f / dist;
         for (float t = 0; t <= 1.0f; t += step) {
             float x = start.x + (end.x - start.x) * t;
@@ -647,13 +576,12 @@ void LineTool::render(SDL_Renderer* renderer) {
 }
 }
 
-// RectangleTool implementation
+
 void RectangleTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
 
-    // Save state for undo
     Editor::getInstance().saveUndoState();
 }
 
@@ -672,14 +600,12 @@ void RectangleTool::handleMouseUp(const SDL_Event&) {
         SDL_Renderer* renderer = canvas.getRenderer();
         SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
-        // Draw the final rectangle
         SDL_SetRenderDrawColor(renderer,
             static_cast<Uint8>(m_color.x * 255),
             static_cast<Uint8>(m_color.y * 255),
             static_cast<Uint8>(m_color.z * 255),
             static_cast<Uint8>(m_color.w * 255));
 
-        // Calculate rectangle dimensions
         int x = std::min(static_cast<int>(m_startPos.x), static_cast<int>(m_currentPos.x));
         int y = std::min(static_cast<int>(m_startPos.y), static_cast<int>(m_currentPos.y));
         int w = std::abs(static_cast<int>(m_currentPos.x - m_startPos.x));
@@ -689,7 +615,6 @@ void RectangleTool::handleMouseUp(const SDL_Event&) {
         if (m_filled) {
             SDL_RenderFillRect(renderer, &rect);
         } else {
-            // Draw with the specified thickness
             for (int i = 0; i < m_size; i++) {
                 SDL_Rect border = {x - i, y - i, w + i * 2, h + i * 2};
                 SDL_RenderDrawRect(renderer, &border);
@@ -705,14 +630,12 @@ void RectangleTool::handleMouseUp(const SDL_Event&) {
 void RectangleTool::render(SDL_Renderer* renderer) {
     if (!m_isDrawing) return;
 
-    // Draw preview rectangle
     SDL_SetRenderDrawColor(renderer,
         static_cast<Uint8>(m_color.x * 255),
         static_cast<Uint8>(m_color.y * 255),
         static_cast<Uint8>(m_color.z * 255),
         static_cast<Uint8>(m_color.w * 255));
 
-    // Calculate rectangle dimensions
     int x = std::min(static_cast<int>(m_startPos.x), static_cast<int>(m_currentPos.x));
     int y = std::min(static_cast<int>(m_startPos.y), static_cast<int>(m_currentPos.y));
     int w = std::abs(static_cast<int>(m_currentPos.x - m_startPos.x));
@@ -722,7 +645,6 @@ void RectangleTool::render(SDL_Renderer* renderer) {
     if (m_filled) {
         SDL_RenderFillRect(renderer, &rect);
     } else {
-        // Draw with the specified thickness
         for (int i = 0; i < m_size; i++) {
             SDL_Rect border = {x - i, y - i, w + i * 2, h + i * 2};
             SDL_RenderDrawRect(renderer, &border);
@@ -730,13 +652,13 @@ void RectangleTool::render(SDL_Renderer* renderer) {
     }
 }
 
-// CircleTool implementation
+
 void CircleTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
 
-    // Save state for undo
+    
     Editor::getInstance().saveUndoState();
 }
 
@@ -755,23 +677,19 @@ void CircleTool::handleMouseUp(const SDL_Event&) {
         SDL_Renderer* renderer = canvas.getRenderer();
         SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
-        // Calculate circle radius and center
         float dx = m_currentPos.x - m_startPos.x;
         float dy = m_currentPos.y - m_startPos.y;
         int radius = static_cast<int>(std::sqrt(dx*dx + dy*dy));
         int centerX = static_cast<int>(m_startPos.x);
         int centerY = static_cast<int>(m_startPos.y);
 
-        // Set color
         SDL_SetRenderDrawColor(renderer,
             static_cast<Uint8>(m_color.x * 255),
             static_cast<Uint8>(m_color.y * 255),
             static_cast<Uint8>(m_color.z * 255),
             static_cast<Uint8>(m_color.w * 255));
 
-        // Draw the circle
         if (m_filled) {
-            // Fill the circle
             for (int y = -radius; y <= radius; y++) {
                 for (int x = -radius; x <= radius; x++) {
                     if (x*x + y*y <= radius*radius) {
@@ -780,7 +698,6 @@ void CircleTool::handleMouseUp(const SDL_Event&) {
                 }
             }
         } else {
-            // Draw the outline
             for (int thickness = 0; thickness < m_size; thickness++) {
                 int r = radius - thickness;
                 if (r < 0) break;
@@ -805,23 +722,19 @@ void CircleTool::handleMouseUp(const SDL_Event&) {
 void CircleTool::render(SDL_Renderer* renderer) {
     if (!m_isDrawing) return;
 
-    // Calculate circle radius and center
     float dx = m_currentPos.x - m_startPos.x;
     float dy = m_currentPos.y - m_startPos.y;
     int radius = static_cast<int>(std::sqrt(dx*dx + dy*dy));
     int centerX = static_cast<int>(m_startPos.x);
     int centerY = static_cast<int>(m_startPos.y);
 
-    // Set color
     SDL_SetRenderDrawColor(renderer,
         static_cast<Uint8>(m_color.x * 255),
         static_cast<Uint8>(m_color.y * 255),
         static_cast<Uint8>(m_color.z * 255),
         static_cast<Uint8>(m_color.w * 255));
 
-    // Draw the circle
     if (m_filled) {
-        // Fill the circle
         for (int y = -radius; y <= radius; y++) {
             for (int x = -radius; x <= radius; x++) {
                 if (x*x + y*y <= radius*radius) {
@@ -830,7 +743,6 @@ void CircleTool::render(SDL_Renderer* renderer) {
             }
         }
     } else {
-        // Draw the outline
         for (int thickness = 0; thickness < m_size; thickness++) {
             int r = radius - thickness;
             if (r < 0) break;
@@ -847,13 +759,13 @@ void CircleTool::render(SDL_Renderer* renderer) {
     }
 }
 
-// TriangleTool implementation
+
 void TriangleTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
 
-    // Save state for undo
+    
     Editor::getInstance().saveUndoState();
 }
 
@@ -872,32 +784,26 @@ void TriangleTool::handleMouseUp(const SDL_Event&) {
         SDL_Renderer* renderer = canvas.getRenderer();
         SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
-        // Set color
         SDL_SetRenderDrawColor(renderer,
             static_cast<Uint8>(m_color.x * 255),
             static_cast<Uint8>(m_color.y * 255),
             static_cast<Uint8>(m_color.z * 255),
             static_cast<Uint8>(m_color.w * 255));
 
-        // Calculate proper triangle points
         int x1 = static_cast<int>(m_startPos.x);
         int y1 = static_cast<int>(m_startPos.y);
         int x2 = static_cast<int>(m_currentPos.x);
         int y2 = static_cast<int>(m_currentPos.y);
 
-        // Third point: center of base horizontally, height based on base width
         int baseWidth = abs(x2 - x1);
         int x3 = (x1 + x2) / 2;
         int y3 = y1 - static_cast<int>(baseWidth * 0.866f);
 
-        // Draw triangle with thickness like line tool
         for (int i = 0; i < m_size; i++) {
             int offset = i - m_size/2;
-            // Draw three connected lines with proper thickness
             SDL_RenderDrawLine(renderer, x1 + offset, y1, x3 + offset, y3);
             SDL_RenderDrawLine(renderer, x3 + offset, y3, x2 + offset, y2);
             SDL_RenderDrawLine(renderer, x2 + offset, y2, x1 + offset, y1);
-            // Additional thickness in perpendicular direction
             SDL_RenderDrawLine(renderer, x1, y1 + offset, x3, y3 + offset);
             SDL_RenderDrawLine(renderer, x3, y3 + offset, x2, y2 + offset);
             SDL_RenderDrawLine(renderer, x2, y2 + offset, x1, y1 + offset);
@@ -912,25 +818,21 @@ void TriangleTool::handleMouseUp(const SDL_Event&) {
 void TriangleTool::render(SDL_Renderer* renderer) {
     if (!m_isDrawing) return;
 
-    // Set color
     SDL_SetRenderDrawColor(renderer,
         static_cast<Uint8>(m_color.x * 255),
         static_cast<Uint8>(m_color.y * 255),
         static_cast<Uint8>(m_color.z * 255),
         static_cast<Uint8>(m_color.w * 255));
 
-    // Calculate proper triangle points for preview
     int x1 = static_cast<int>(m_startPos.x);
     int y1 = static_cast<int>(m_startPos.y);
     int x2 = static_cast<int>(m_currentPos.x);
     int y2 = static_cast<int>(m_currentPos.y);
 
-    // Third point: center of base horizontally, height based on base width
     int baseWidth = abs(x2 - x1);
     int x3 = (x1 + x2) / 2;
     int y3 = y1 - static_cast<int>(baseWidth * 0.866f);
 
-    // Draw preview triangle with current thickness
     for (int i = 0; i < m_size; i++) {
         int offset = i - m_size/2;
         SDL_RenderDrawLine(renderer, x1 + offset, y1, x3 + offset, y3);
@@ -939,15 +841,12 @@ void TriangleTool::render(SDL_Renderer* renderer) {
     }
 }
 
-// FillTool implementation
+
 void FillTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
 
-    // Get click coordinates
     int x = event.button.x;
     int y = event.button.y;
-
-    // Canvas& canvas = GetCanvas();
     Editor::getInstance().saveUndoState();
     floodFill(x, y, m_color, ImVec4(0, 0, 0, 0));
 
@@ -955,7 +854,7 @@ void FillTool::handleMouseDown(const SDL_Event& event) {
 }
 
 void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor */) {
-    // HACK: old queue-based fill was memory hog (issue #156)
+
     Canvas& canvas = GetCanvas();
     Layer* activeLayer = canvas.getActiveLayer();
 
@@ -970,7 +869,6 @@ void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor *
 
     if (x < 0 || x >= width || y < 0 || y >= height) return;
 
-    // Read texture into surface for fast pixel access
     SDL_SetRenderTarget(renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
@@ -985,7 +883,6 @@ void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor *
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
     Uint32 targetColor = pixels[y * width + x];
 
-    // Convert fill color
     Uint8 r = static_cast<Uint8>(fillColor.x * 255);
     Uint8 g = static_cast<Uint8>(fillColor.y * 255);
     Uint8 b = static_cast<Uint8>(fillColor.z * 255);
@@ -998,7 +895,6 @@ void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor *
         return;
     }
 
-    // Stack-based flood fill - much faster
     std::vector<std::pair<int, int>> stack;
     stack.push_back({x, y});
 
@@ -1009,25 +905,22 @@ void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor *
         if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
         if (pixels[cy * width + cx] != targetColor) continue;
 
-        // Find the leftmost pixel in this row
         int left = cx;
         while (left > 0 && pixels[cy * width + (left - 1)] == targetColor) {
             left--;
         }
-
-        // Find the rightmost pixel in this row
         int right = cx;
         while (right < width - 1 && pixels[cy * width + (right + 1)] == targetColor) {
             right++;
         }
 
         // Fill the horizontal line
-        for (int i = left; i <= right; i++) {
-            pixels[cy * width + i] = newColor;
+            for (int i = left; i <= right; i++) {
+                pixels[cy * width + i] = newColor;
         }
 
         // Add pixels above and below to the stack
-        for (int i = left; i <= right; i++) {
+            for (int i = left; i <= right; i++) {
             if (cy > 0 && pixels[(cy - 1) * width + i] == targetColor) {
                 stack.push_back({i, cy - 1});
             }
@@ -1037,8 +930,7 @@ void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor *
         }
     }
 
-    // Copy back to texture
-    SDL_Texture* newTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    newTexture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
 
     if (newTexture) {
@@ -1049,45 +941,9 @@ void FillTool::floodFill(int x, int y, ImVec4 fillColor, ImVec4 /* targetColor *
     SDL_SetRenderTarget(renderer, nullptr);
 }
 
-// SelectionTool implementation
+
 void SelectionTool::handleMouseDown(const SDL_Event& event) {
-    // COMMENTED OUT OLD IMPLEMENTATION - REPLACED WITH CLEANER VERSION
-    /*
-    m_isDrawing = true;
-    m_startPos = ImVec2(event.button.x, event.button.y);
-    m_currentPos = m_startPos;
 
-    Canvas& canvas = GetCanvas();
-
-    // Use smart object selection to find and select layer at click point
-    canvas.selectLayerAtPoint(event.button.x, event.button.y);
-
-    // FIXED: Only handle transform operations when shift is held
-    // Regular left click = just selection, no transform operations
-    SDL_Point mousePos = {event.button.x, event.button.y};
-
-    if (event.button.button == SDL_BUTTON_LEFT) {
-        const Uint8* keyState = SDL_GetKeyboardState(nullptr);
-        if (keyState[SDL_SCANCODE_LSHIFT] || keyState[SDL_SCANCODE_RSHIFT]) {
-            // Only do transform operations when shift is held
-            canvas.handleTransformDrag(event, mousePos);
-        }
-        // Regular left click does nothing - just selection
-    }
-    // Removed problematic right-click handling that caused unwanted scaling
-
-    // Clear old selection system if no transform is active
-    if (!canvas.isTransformBoxVisible()) {
-        canvas.setHasSelection(false);
-        canvas.setSelectionRect({0, 0, 0, 0});
-        if (canvas.getSelectionTexture()) {
-            SDL_DestroyTexture(canvas.getSelectionTexture());
-            canvas.setSelectionTexture(nullptr);
-        }
-    }
-    */
-
-    // NEW IMPLEMENTATION: Clean separation of move vs scale operations
     if (event.button.button != SDL_BUTTON_LEFT) return;
 
     m_isDrawing = true;
@@ -1096,26 +952,22 @@ void SelectionTool::handleMouseDown(const SDL_Event& event) {
 
     Canvas& canvas = GetCanvas();
 
-    // Always select layer at click point first
     canvas.selectLayerAtPoint(event.button.x, event.button.y);
 
-    // Check if shift is held - this determines the operation mode
     const Uint8* keyState = SDL_GetKeyboardState(nullptr);
     bool shiftHeld = (keyState[SDL_SCANCODE_LSHIFT] || keyState[SDL_SCANCODE_RSHIFT]);
 
     if (shiftHeld) {
-        // SHIFT+LEFT CLICK: Scale mode - higher precedence
         if (canvas.isTransformBoxVisible()) {
             SDL_Point mousePos = {event.button.x, event.button.y};
             canvas.handleTransformDrag(event, mousePos);
         }
     } else {
-        // LEFT CLICK ONLY: Move mode - only if inside transform box
         if (canvas.isTransformBoxVisible()) {
             SDL_Point mousePos = {event.button.x, event.button.y};
             SDL_Rect transformRect = canvas.getTransformRect();
 
-            // Check if click is inside the transform box
+            
             if (mousePos.x >= transformRect.x && mousePos.x <= transformRect.x + transformRect.w &&
                 mousePos.y >= transformRect.y && mousePos.y <= transformRect.y + transformRect.h) {
                 canvas.handleTransformDrag(event, mousePos);
@@ -1131,7 +983,7 @@ void SelectionTool::handleMouseMove(const SDL_Event& event) {
 
     Canvas& canvas = GetCanvas();
 
-    // Only handle transform if we have a visible transform box
+    
     if (canvas.isTransformBoxVisible()) {
         SDL_Point mousePos = {event.motion.x, event.motion.y};
         SDL_Event motionEvent = event;
@@ -1144,24 +996,22 @@ void SelectionTool::handleMouseUp(const SDL_Event& event) {
 
     Canvas& canvas = GetCanvas();
 
-    // Always handle transform completion if transform box is visible
     if (canvas.isTransformBoxVisible()) {
         SDL_Point mousePos = {event.button.x, event.button.y};
         canvas.handleTransformDrag(event, mousePos);
     } else {
-        // Fallback to rectangular selection if no layer was selected
+        
         int x = std::min(static_cast<int>(m_startPos.x), static_cast<int>(m_currentPos.x));
         int y = std::min(static_cast<int>(m_startPos.y), static_cast<int>(m_currentPos.y));
         int w = std::abs(static_cast<int>(m_currentPos.x - m_startPos.x));
         int h = std::abs(static_cast<int>(m_currentPos.y - m_startPos.y));
 
-        // Only create selection if it has reasonable area
+        
         if (w > 5 && h > 5) {
             SDL_Rect selectionRect = {x, y, w, h};
             canvas.setSelectionRect(selectionRect);
             canvas.setHasSelection(true);
 
-            // Create selection texture
             Editor::getInstance().copySelection();
         }
     }
@@ -1172,11 +1022,10 @@ void SelectionTool::handleMouseUp(const SDL_Event& event) {
 void SelectionTool::render(SDL_Renderer* renderer) {
     if (!m_isDrawing) return;
 
-    // Draw selection preview
     SDL_SetRenderDrawColor(renderer, 0, 120, 215, 128);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-    // Calculate rectangle dimensions
+    
     int x = std::min(static_cast<int>(m_startPos.x), static_cast<int>(m_currentPos.x));
     int y = std::min(static_cast<int>(m_startPos.y), static_cast<int>(m_currentPos.y));
     int w = std::abs(static_cast<int>(m_currentPos.x - m_startPos.x));
@@ -1185,7 +1034,7 @@ void SelectionTool::render(SDL_Renderer* renderer) {
     SDL_Rect rect = {x, y, w, h};
     SDL_RenderDrawRect(renderer, &rect);
 
-    // Draw dashed lines
+    
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
 
     const int dashLength = 4;
@@ -1218,7 +1067,7 @@ void SelectionTool::cancel() {
     }
 }
 
-// Flood selection tool implementation - directly inspired by flood fill algorithm
+
 void FloodSelectionTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
 
@@ -1235,7 +1084,6 @@ void FloodSelectionTool::handleMouseDown(const SDL_Event& event) {
 
     if (!texture) return;
 
-    // Read pixel color at click point
     SDL_SetRenderTarget(renderer, texture);
 
     int width, height;
@@ -1246,7 +1094,6 @@ void FloodSelectionTool::handleMouseDown(const SDL_Event& event) {
         return;
     }
 
-    // Create surface to read pixel data
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
 
@@ -1260,7 +1107,6 @@ void FloodSelectionTool::handleMouseDown(const SDL_Event& event) {
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
     Uint32 targetColorRaw = pixels[y * width + x];
 
-    // Convert to ImVec4 for comparison
     ImVec4 targetColor = {
         ((targetColorRaw & 0xFF) / 255.0f),
         (((targetColorRaw >> 8) & 0xFF) / 255.0f),
@@ -1278,17 +1124,14 @@ void FloodSelectionTool::handleMouseDown(const SDL_Event& event) {
 }
 
 void FloodSelectionTool::handleMouseMove(const SDL_Event& /* event */) {
-    // No operation for flood selection
 }
 
 void FloodSelectionTool::handleMouseUp(const SDL_Event& /* event */) {
-    // No operation for flood selection
 }
 
 void FloodSelectionTool::render(SDL_Renderer* renderer) {
     if (m_selectedPixels.empty()) return;
 
-    // Draw selection as highlighted pixels
     SDL_SetRenderDrawColor(renderer, 0, 120, 215, 128);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
@@ -1318,7 +1161,6 @@ void FloodSelectionTool::floodSelect(int x, int y, ImVec4 targetColor) {
 
     if (x < 0 || x >= width || y < 0 || y >= height) return;
 
-    // Read texture into surface for pixel access
     SDL_SetRenderTarget(renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
@@ -1333,7 +1175,7 @@ void FloodSelectionTool::floodSelect(int x, int y, ImVec4 targetColor) {
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
     std::vector<std::vector<bool>> visited(height, std::vector<bool>(width, false));
 
-    // Stack-based flood selection algorithm - inspired by flood fill
+    
     std::vector<std::pair<int, int>> stack;
     stack.push_back({x, y});
 
@@ -1357,7 +1199,7 @@ void FloodSelectionTool::floodSelect(int x, int y, ImVec4 targetColor) {
         visited[cy][cx] = true;
         m_selectedPixels.push_back({cx, cy});
 
-        // Add neighboring pixels to stack
+        
         stack.push_back({cx - 1, cy});
         stack.push_back({cx + 1, cy});
         stack.push_back({cx, cy - 1});
@@ -1367,7 +1209,6 @@ void FloodSelectionTool::floodSelect(int x, int y, ImVec4 targetColor) {
     SDL_FreeSurface(surface);
     SDL_SetRenderTarget(renderer, nullptr);
 
-    // Create selection rect from selected pixels
     if (!m_selectedPixels.empty()) {
         int minX = width, maxX = 0;
         int minY = height, maxY = 0;
@@ -1414,7 +1255,6 @@ void FloodSelectionTool::deleteSelectedPixels() {
 
     if (!activeLayer || activeLayer->isLocked()) return;
 
-    // Save undo state before destructive operation
     Editor::getInstance().saveUndoState();
 
     SDL_Renderer* renderer = canvas.getRenderer();
@@ -1425,7 +1265,6 @@ void FloodSelectionTool::deleteSelectedPixels() {
     int width, height;
     SDL_QueryTexture(texture, nullptr, nullptr, &width, &height);
 
-    // Read texture into surface for pixel manipulation
     SDL_SetRenderTarget(renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
@@ -1440,14 +1279,12 @@ void FloodSelectionTool::deleteSelectedPixels() {
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
 
     // Delete selected pixels by making them transparent
-    // (Enough is cute - but deletion is serious business)
     for (const auto& pixel : m_selectedPixels) {
         if (pixel.x >= 0 && pixel.x < width && pixel.y >= 0 && pixel.y < height) {
-            pixels[pixel.y * width + pixel.x] = 0x00000000; // Transparent
+            pixels[pixel.y * width + pixel.x] = 0x00000000;
         }
     }
 
-    // Create new texture from modified surface
     SDL_Texture* newTexture = SDL_CreateTextureFromSurface(renderer, surface);
 
     SDL_FreeSurface(surface);
@@ -1458,14 +1295,13 @@ void FloodSelectionTool::deleteSelectedPixels() {
         activeLayer->setTexture(newTexture);
     }
 
-    // Clear selection after deletion
     clearSelection();
 }
 
-// TextTool implementation
+
 TextTool::TextTool() : m_activeTextBox(-1), m_needsUpdate(false) {
     m_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-    // NOTE: font loading crashes on some systems - moved to lazy init
+
     loadAvailableFonts();
 }
 
@@ -1546,7 +1382,7 @@ void TextTool::createTextBox(int x, int y, int w, int h) {
     Canvas& canvas = GetCanvas();
     std::string layerName = "Text " + std::to_string(m_textBoxes.size() + 1);
     canvas.addLayer(layerName);
-    // WORKAROUND: should reuse layers but merge conflicts with v1.1 branch
+
 
     TextBox newBox;
     newBox.rect = {x, y, w, h};
@@ -1610,7 +1446,7 @@ void TextTool::renderTextBoxToLayer(const TextBox& textBox) {
     const auto& layers = canvas.getLayers();
 
     if (textBox.layerIndex < 0 || textBox.layerIndex >= static_cast<int>(layers.size())) {
-        // std::cout << "Bad layer index: " << textBox.layerIndex << std::endl;
+
         return;
     }
 
@@ -1747,13 +1583,13 @@ void TextTool::renderTextBoxPreview(SDL_Renderer* renderer, const TextBox& textB
     }
 }
 
-// GradientTool implementation
+
 void GradientTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
 
-    // Save state for undo
+    
     Editor::getInstance().saveUndoState();
 }
 
@@ -1772,8 +1608,7 @@ void GradientTool::handleMouseUp(const SDL_Event&) {
         SDL_Renderer* renderer = canvas.getRenderer();
         SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
-        // Draw the final gradient
-        drawGradient(renderer, m_startPos, m_currentPos, m_color, m_secondaryColor);
+    drawGradient(renderer, m_startPos, m_currentPos, m_color, m_secondaryColor);
 
         SDL_SetRenderTarget(renderer, nullptr);
     }
@@ -1783,22 +1618,17 @@ void GradientTool::handleMouseUp(const SDL_Event&) {
 
 void GradientTool::render(SDL_Renderer* renderer) {
     if (!m_isDrawing) return;
-
-    // Draw gradient preview
     drawGradient(renderer, m_startPos, m_currentPos, m_color, m_secondaryColor);
 }
 
 void GradientTool::drawGradient(SDL_Renderer* renderer, ImVec2 start, ImVec2 end, ImVec4 startColor, ImVec4 endColor) {
-    // Get gradient parameters
+    
     float dx = end.x - start.x;
         float dy = end.y - start.y;
         float distance = std::sqrt(dx*dx + dy*dy);
-
-        // Skip if distance is too small
         if (distance < 1.0f) return;
 
-        // float nx = dx / distance;
-        // float ny = dy / distance;
+        
 
 
         int minX = std::min(static_cast<int>(start.x), static_cast<int>(end.x));
@@ -1806,11 +1636,8 @@ void GradientTool::drawGradient(SDL_Renderer* renderer, ImVec2 start, ImVec2 end
         int minY = std::min(static_cast<int>(start.y), static_cast<int>(end.y));
         int maxY = std::max(static_cast<int>(start.y), static_cast<int>(end.y));
 
-        // Make sure to have some reasonable bounds
-        if (maxX - minX < 2) { minX -= 100; maxX += 100; }
-        if (maxY - minY < 2) { minY -= 100; maxY += 100; }
-
-        // Render based on gradient type
+    if (maxX - minX < 2) { minX -= 100; maxX += 100; }
+    if (maxY - minY < 2) { minY -= 100; maxY += 100; }
         switch (m_type) {
             case GradientType::LINEAR: {
                 // Linear gradient along the line
@@ -1842,7 +1669,6 @@ void GradientTool::drawGradient(SDL_Renderer* renderer, ImVec2 start, ImVec2 end
             }
 
             case GradientType::RADIAL: {
-                // Radial gradient from start to end
                 float maxDist = distance;
                 for (int y = minY; y <= maxY; y++) {
                     for (int x = minX; x <= maxX; x++) {
@@ -1867,20 +1693,14 @@ void GradientTool::drawGradient(SDL_Renderer* renderer, ImVec2 start, ImVec2 end
             }
 
             case GradientType::ANGULAR: {
-                // Angular gradient around start point
                 float startAngle = std::atan2(dy, dx);
                 for (int y = minY; y <= maxY; y++) {
                     for (int x = minX; x <= maxX; x++) {
                         float dx = x - start.x;
                         float dy = y - start.y;
 
-                        // Skip the center point to avoid division by zero
                         if (std::abs(dx) < 0.01f && std::abs(dy) < 0.01f) continue;
-
-                        // Calculate angle
                         float angle = std::atan2(dy, dx);
-
-                        // Normalize angle difference to [0, 1]
                         float angleDiff = angle - startAngle;
                         if (angleDiff < 0) angleDiff += 2 * M_PI;
                         float t = angleDiff / (2 * M_PI);
@@ -1900,17 +1720,13 @@ void GradientTool::drawGradient(SDL_Renderer* renderer, ImVec2 start, ImVec2 end
         }
     }
 
-// HealingTool implementation
+
 void HealingTool::handleMouseDown(const SDL_Event& event) {
     m_isDrawing = true;
     m_startPos = ImVec2(event.button.x, event.button.y);
     m_currentPos = m_startPos;
-
-    // Apply healing at the first position
-    // Save state for undo
     Editor::getInstance().saveUndoState();
 
-    // Apply healing at the initial position
     int x = static_cast<int>(m_startPos.x);
     int y = static_cast<int>(m_startPos.y);
     applyHealingAt(x, y);
@@ -1946,7 +1762,7 @@ void TextTool::loadAvailableFonts() {
     m_availableFonts.clear();
     m_fontNames.clear();
 
-    // CRUDE: hardcode arial path since font discovery is flaky
+
     m_availableFonts.push_back("arial.ttf");
     m_fontNames.push_back("Default (Arial)");
 
@@ -1956,9 +1772,9 @@ void TextTool::loadAvailableFonts() {
     scanFontDirectory("C:/Windows/Fonts/");
 }
 
-void TextTool::scanFontDirectory(const std::string& directory) {
+void TextTool::scanFontDirectory(const std::string& directory) { // isn't this just string_view pretty much? dunno how to use it so this stays for now.
     if (directory == "fonts/") {
-        // HACK: directory scanning broken on Windows - use hardcoded list
+        // fonts folder. Can't track and ensure they are all free so... will delete.
         std::vector<std::string> knownFonts = {
             "!The Black Bloc Bold.ttf", "!The Black Bloc Regular.ttf",
             "08 Underground.ttf", "1942 Report.ttf", "36 Days Ago Bold.ttf",
@@ -2125,7 +1941,7 @@ void TextTool::scanFontDirectory(const std::string& directory) {
             TTF_Font* testFont = TTF_OpenFont(fullPath.c_str(), 12);
             if (testFont) {
                 TTF_CloseFont(testFont);
-                // font loads ok
+                //ok
 
                 std::string fontName = fontFile;
                 size_t dotPos = fontName.find_last_of('.');
@@ -2195,7 +2011,7 @@ void TextTool::scanFontDirectory(const std::string& directory) {
 }
 
 void TextTool::addCustomFont(const std::string& fontPath, const std::string& fontName) {
-    // quick check for dupes
+
     for (const auto& existing : m_availableFonts) {
         if (existing == fontPath) {
             return;
@@ -2215,12 +2031,12 @@ void TextTool::setFontForTextBox(int index, const std::string& fontPath, const s
 
     m_textBoxes[index].fontPath = fontPath;
     m_textBoxes[index].fontName = fontName;
-    m_needsUpdate = true; // FIXME: optimize this
+    m_needsUpdate = true;
 }
 
 void TextTool::drawTextBoxBorder(SDL_Renderer* renderer, const TextBox& textBox, bool isActive) {
     if (isActive) {
-        // Double border looks bad but QA signed off (release pressure)
+
         SDL_SetRenderDrawColor(renderer, 0, 120, 215, 255);
         SDL_Rect outerRect = textBox.rect;
         outerRect.x -= 2;
@@ -2251,28 +2067,23 @@ void HealingTool::applyHealingAt(int x, int y) {
     SDL_Renderer* renderer = canvas.getRenderer();
     SDL_Texture* texture = activeLayer->getTexture();
 
-    // Get texture dimensions
     int width, height;
     SDL_QueryTexture(texture, nullptr, nullptr, &width, &height);
 
-    // Check bounds
     if (x < 0 || x >= width || y < 0 || y >= height) return;
 
-    // Create surface from texture to access pixel data
     SDL_SetRenderTarget(renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
     SDL_RenderReadPixels(renderer, nullptr, SDL_PIXELFORMAT_RGBA8888, surface->pixels, surface->pitch);
 
-    // Healing brush algorithm: simple blur/averaging
     const int radius = m_size / 2;
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
 
-    // Sample surrounding area to get average color
     int sampleCount = 0;
     int redSum = 0, greenSum = 0, blueSum = 0, alphaSum = 0;
 
-    // Get average color from surrounding pixels
+    // Get average color from surrounding pixels like GL_FILTER_LINEAR
     for (int dy = -radius*2; dy <= radius*2; dy++) {
         for (int dx = -radius*2; dx <= radius*2; dx++) {
             int sx = x + dx;
@@ -2342,9 +2153,9 @@ void HealingTool::applyHealingAt(int x, int y) {
     SDL_SetRenderTarget(renderer, nullptr);
 }
 
-// Clone Stamp Tool implementation
+
 CloneStampTool::CloneStampTool() : Tool() {
-    m_size = 20; // Default brush size
+    m_size = 20;
 }
 
 void CloneStampTool::handleMouseDown(const SDL_Event& event) {
@@ -2419,19 +2230,14 @@ void CloneStampTool::cloneAt(int x, int y) {
     SDL_Renderer* renderer = canvas.getRenderer();
     if (!renderer) return;
 
-    // Calculate offset from initial click to current position
     int offsetX = x - (int)m_startPos.x;
     int offsetY = y - (int)m_startPos.y;
 
-    // Calculate source position (moves with the brush)
     int sourceX = m_sourcePoint.x + offsetX;
     int sourceY = m_sourcePoint.y + offsetY;
 
-    // Get source texture (current layer for simplicity)
     SDL_Texture* sourceTexture = activeLayer->getTexture();
     if (!sourceTexture) return;
-
-    // Set render target to active layer
     SDL_SetRenderTarget(renderer, activeLayer->getTexture());
 
     int brushRadius = m_size / 2;
@@ -2452,17 +2258,12 @@ void CloneStampTool::cloneAt(int x, int y) {
             if (srcX < 0 || srcX >= canvas.getWidth() || srcY < 0 || srcY >= canvas.getHeight()) continue;
             if (dstX < 0 || dstX >= canvas.getWidth() || dstY < 0 || dstY >= canvas.getHeight()) continue;
 
-            // For simplicity, we'll use SDL_RenderCopy for small rectangles
-            // In a real implementation, we'd manipulate pixels directly for better performance
             SDL_Rect srcRect = {srcX, srcY, 1, 1};
             SDL_Rect dstRect = {dstX, dstY, 1, 1};
 
             // Calculate opacity based on distance from center for smooth brushing
             float opacity = 1.0f - (dist / brushRadius);
             SDL_SetTextureAlphaMod(sourceTexture, (Uint8)(opacity * 255));
-
-            // Note: This is a simplified approach. Real clone stamp would need pixel-level manipulation
-            // SDL_RenderCopy(renderer, sourceTexture, &srcRect, &dstRect);
         }
     }
 
@@ -2472,23 +2273,18 @@ void CloneStampTool::cloneAt(int x, int y) {
 }
 
 void CloneStampTool::drawSourcePreview(SDL_Renderer* renderer) {
-    // Draw a crosshair at the source point
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 200);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     int crossSize = 10;
 
-    // Horizontal line
     SDL_RenderDrawLine(renderer,
                       m_sourcePoint.x - crossSize, m_sourcePoint.y,
                       m_sourcePoint.x + crossSize, m_sourcePoint.y);
-
-    // Vertical line
     SDL_RenderDrawLine(renderer,
                       m_sourcePoint.x, m_sourcePoint.y - crossSize,
                       m_sourcePoint.x, m_sourcePoint.y + crossSize);
 
-    // Draw circle around source point
     int radius = 8;
     for (int angle = 0; angle < 360; angle += 10) {
         float radians = angle * M_PI / 180.0f;

@@ -8,15 +8,12 @@ public:
     Layer(const std::string& name = "New Layer");
     ~Layer();
     
-    // Prevent copying
     Layer(const Layer& other) = delete;
     Layer& operator=(const Layer& other) = delete;
     
-    // Allow moving
     Layer(Layer&& other) noexcept;
     Layer& operator=(Layer&& other) noexcept;
     
-    // Accessors
     SDL_Texture* getTexture() const { return m_texture; }
     void setTexture(SDL_Texture* texture);
     
@@ -56,13 +53,10 @@ public:
     void setPosition(int x, int y) { m_x = x; m_y = y; }
     void moveBy(int dx, int dy) { m_x += dx; m_y += dy; }
     
-    // Enhanced mask operations for non-destructive editing
     void createEmptyMask(SDL_Renderer* renderer, int width, int height);
     void clearMask(SDL_Renderer* renderer);
-    void invertMask(SDL_Renderer* renderer);
-    void applyMaskToTexture(SDL_Renderer* renderer); // Apply mask directly to main texture
+    void invertMask(SDL_Renderer* renderer);// 
     
-    // Layer operations
     void duplicate(Layer& newLayer) const;
     void clear(SDL_Renderer* renderer);
     
@@ -82,11 +76,10 @@ private:
     SDL_Texture* m_mask = nullptr;
     bool m_useMask = false;
     
-    // Layer position for moving content
     int m_x = 0;
     int m_y = 0;
     
-    // HACK: Track if mask was modified for optimization
+    // This is a hack. Track if mask was modified for optimization
     bool m_maskDirty = false;
     
     void cleanup();

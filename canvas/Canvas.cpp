@@ -9,9 +9,6 @@
 #include <cmath>
 #include <cstring>
 
-// Canvas implementation - handles the main drawing surface and layers
-
-// Singleton pattern - yeah I know, globals are bad but this works for now
 [[nodiscard("This is a singleton so it needs to be referenced.")]]Canvas& Canvas::getInstance() {
     static Canvas instance;
     return instance;
@@ -20,27 +17,24 @@
 Canvas::Canvas()
     : m_renderer(nullptr),
       m_canvasBuffer(nullptr),
-      m_width(1280),   // standard HD width
-      m_height(720),   // standard HD height
+    m_width(1280),
+    m_height(720),
       m_activeLayerIndex(0),
       m_hasSelection(false),
       m_selectionTexture(nullptr),
       m_resizeCorner(-1) {
-    // Initialize with reasonable defaults
 }
 
 void Canvas::init(SDL_Renderer* renderer) {
     m_renderer = renderer;
-    // printf("Canvas init %dx%d\n", m_width, m_height); // debug
-    // NOTE: setupNewCanvas broken in v1.2 - patched for release
+
     setupNewCanvas(m_width, m_height);
     addLayer("Background");
 }
 
 void Canvas::cleanup() {
-    m_layers.clear(); // This will trigger the Layer destructors
+    m_layers.clear();
 
-    // Clean up SDL textures to avoid memory leaks and use after frees.
     if (m_canvasBuffer) {
         SDL_DestroyTexture(m_canvasBuffer);
         m_canvasBuffer = nullptr;
@@ -66,7 +60,7 @@ void Canvas::clearFontCache() {
 
 TTF_Font* Canvas::getFont(int size, bool bold, bool italic) {
     int key = size;
-    if (bold) key |= 0x10000;  // bit hack for caching
+    if (bold) key |= 0x10000;
     if (italic) key |= 0x20000;
 
     auto it = m_fontCache.find(key);
@@ -109,28 +103,23 @@ void Canvas::createLayerTexture(Layer& layer) {
         return;
     }
 
-    // Initialize the texture with transparency
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_SetRenderTarget(m_renderer, texture);
     SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
     SDL_RenderClear(m_renderer);
     SDL_SetRenderTarget(m_renderer, nullptr);
 
-    // Initialize with default blend mode
-    layer.setBlendMode(0); // Normal blend mode
+    layer.setBlendMode(0);
 
     layer.setTexture(texture);
 }
 
 void Canvas::setupNewCanvas(int width, int height) {
-    // Store new dimensions
     m_width = width;
     m_height = height;
 
-    // Clear existing layers
     m_layers.clear();
 
-    // Create canvas buffer
     if (m_canvasBuffer) {
         SDL_DestroyTexture(m_canvasBuffer);
     }
@@ -147,7 +136,6 @@ void Canvas::setupNewCanvas(int width, int height) {
         std::cerr << "Error creating canvas buffer: " << SDL_GetError() << std::endl;
     }
 
-    // Reset selection
     m_hasSelection = false;
     m_selectionRect = {0, 0, 0, 0};
 
@@ -161,7 +149,6 @@ void Canvas::addLayer(const std::string& name, bool /* isTextLayer */) {
     auto layer = std::make_unique<Layer>(name);
     createLayerTexture(*layer);
 
-    // If this is the first layer, set it as active
     if (m_layers.empty()) {
         m_activeLayerIndex = 0;
     } else {
@@ -183,7 +170,6 @@ void Canvas::moveLayer(int fromIndex, int toIndex) {
     m_layers.erase(m_layers.begin() + fromIndex);
     m_layers.insert(m_layers.begin() + toIndex, std::move(layer));
 
-    // Update active layer index if it was affected by the move
     if (activeLayerIndex == fromIndex) {
         m_activeLayerIndex = toIndex;
     } else if (activeLayerIndex > fromIndex && activeLayerIndex <= toIndex) {
@@ -202,27 +188,23 @@ void Canvas::duplicateLayer(int index) {
     m_layers[index]->duplicate(*newLayer);
     createLayerTexture(*newLayer);
 
-    // Copy the texture content
     SDL_SetRenderTarget(m_renderer, newLayer->getTexture());
     SDL_RenderCopy(m_renderer, m_layers[index]->getTexture(), nullptr, nullptr);
     SDL_SetRenderTarget(m_renderer, nullptr);
 
-    // Copy the blend mode from the original layer
     newLayer->setBlendMode(m_layers[index]->getBlendMode());
 
-    // Insert after the original
     m_layers.insert(m_layers.begin() + index + 1, std::move(newLayer));
     m_activeLayerIndex = index + 1;
 }
 
 void Canvas::removeLayer(int index) {
     if (index < 0 || index >= static_cast<int>(m_layers.size()) || m_layers.size() <= 1) {
-        return; // Always keep at least one layer
+        return;
     }
 
     m_layers.erase(m_layers.begin() + index);
 
-    // Adjust active layer index
     if (m_activeLayerIndex >= static_cast<int>(m_layers.size())) {
         m_activeLayerIndex = m_layers.size() - 1;
     }
@@ -230,19 +212,18 @@ void Canvas::removeLayer(int index) {
 
 void Canvas::renameLayer(int index, const std::string& newName) {
     if (index < 0 || index >= static_cast<int>(m_layers.size())) {
-        return; // Invalid index - just silently fail
+        return;
     }
 
     std::string finalName = newName;
 
-    // TODO: Make this configurable maybe? 25 chars seems reasonable for UI
+
     const size_t MAX_NAME_LENGTH = 25;
     if (finalName.length() > MAX_NAME_LENGTH) {
-        // Truncate long names with ellipsis for UI display
         finalName = finalName.substr(0, MAX_NAME_LENGTH - 3) + "...";
     }
 
-    // HACK: Empty names look weird in the UI, so give it a default
+
     if (finalName.empty()) {
         finalName = "Unnamed Layer";
     }
@@ -258,68 +239,55 @@ Layer* Canvas::getActiveLayer() {
 }
 
 /**
- * Imports an image from a file path and adds it to the canvas
- *
- * This function implements a robust image loading system that:
- * 1. Safely handles various image formats including JPG
- * 2. Correctly scales the image to fit the canvas dimensions
- * 3. Maintains the independence of the imported image from canvas resizing
- * 4. Handles memory properly to prevent segmentation faults
+ * Imports and scales an image to fit the canvas while preserving aspect ratio.
+ * Supports various image formats including JPEG (no alpha) and PNG (with alpha).
  */
 void Canvas::importImage(const char* filePath) {
     if (!filePath) return;
 
-    // Load the image with proper error handling
     SDL_Surface* surface = IMG_Load(filePath);
     if (!surface) {
         std::cerr << "Failed to load image: " << IMG_GetError() << std::endl;
         return;
     }
 
-    // Convert surface to a consistent format to prevent issues with different image formats
-    // This is crucial for JPG images which don't have an alpha channel
+    // Normalize surface format (adds alpha for formats like JPG)
     SDL_Surface* convertedSurface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0);
-    SDL_FreeSurface(surface); // Free the original surface
+    SDL_FreeSurface(surface);
 
     if (!convertedSurface) {
         std::cerr << "Failed to convert surface format: " << SDL_GetError() << std::endl;
         return;
     }
 
-    // Create a new layer for the image
     std::string layerName = "Imported Image";
     if (filePath) {
-        // Extract just the filename from the path
         const char* fileName = strrchr(filePath, '/');
         if (!fileName) fileName = strrchr(filePath, '\\');
         if (fileName) {
-            layerName = fileName + 1; // Skip the slash
+            layerName = fileName + 1;
         } else {
-            layerName = filePath; // Use the full path if no slash found
+            layerName = filePath;
         }
     }
     addLayer(layerName);
 
-    // Scale the image to fit the canvas while maintaining aspect ratio
     double scaleX = static_cast<double>(m_width) / convertedSurface->w;
     double scaleY = static_cast<double>(m_height) / convertedSurface->h;
-    double scale = std::min(scaleX, scaleY); // Use the smaller scale to fit within canvas
+    double scale = std::min(scaleX, scaleY);
 
     int newWidth = static_cast<int>(convertedSurface->w * scale);
     int newHeight = static_cast<int>(convertedSurface->h * scale);
 
-    // Center the image in the canvas
     int offsetX = (m_width - newWidth) / 2;
     int offsetY = (m_height - newHeight) / 2;
 
-    // Create a clean texture for the layer that's the size of the canvas
     Layer* activeLayer = getActiveLayer();
     if (!activeLayer) {
         SDL_FreeSurface(convertedSurface);
         return;
     }
 
-    // Create a blank texture for the layer
     SDL_Texture* layerTexture = SDL_CreateTexture(
         m_renderer,
         SDL_PIXELFORMAT_RGBA8888,
@@ -333,12 +301,10 @@ void Canvas::importImage(const char* filePath) {
         return;
     }
 
-    // Clear the new texture with transparency
     SDL_SetRenderTarget(m_renderer, layerTexture);
     SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
     SDL_RenderClear(m_renderer);
 
-    // Create texture from the converted surface
     SDL_Texture* importedTexture = SDL_CreateTextureFromSurface(m_renderer, convertedSurface);
     SDL_FreeSurface(convertedSurface);
 
@@ -348,28 +314,22 @@ void Canvas::importImage(const char* filePath) {
         return;
     }
 
-    // Set blend mode to support transparency
     SDL_SetTextureBlendMode(importedTexture, SDL_BLENDMODE_BLEND);
 
-    // Draw the image centered and scaled on the layer texture
     SDL_Rect destRect = {offsetX, offsetY, newWidth, newHeight};
     SDL_RenderCopy(m_renderer, importedTexture, NULL, &destRect);
 
-    // Clean up the imported texture now that it's copied to the layer
     SDL_DestroyTexture(importedTexture);
 
-    // Reset render target and set the texture to the layer
     SDL_SetRenderTarget(m_renderer, nullptr);
     activeLayer->setTexture(layerTexture);
 
-    // Add to recent files list
     Editor::getInstance().addRecentFile(std::string(filePath));
 }
 
 void Canvas::exportImage(const char* filePath, const char* format) {
     if (!filePath) return;
 
-    // Create a surface to render all visible layers
     SDL_Surface* surface = SDL_CreateRGBSurface(
         0, m_width, m_height, 32,
         0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000
@@ -380,7 +340,6 @@ void Canvas::exportImage(const char* filePath, const char* format) {
         return;
     }
 
-    // Create a temporary texture to render to
     SDL_Texture* tempTexture = SDL_CreateTexture(
         m_renderer,
         SDL_PIXELFORMAT_RGBA8888,
@@ -395,7 +354,6 @@ void Canvas::exportImage(const char* filePath, const char* format) {
         return;
     }
 
-    // Render all visible layers to the texture
     SDL_SetRenderTarget(m_renderer, tempTexture);
     SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
     SDL_RenderClear(m_renderer);
@@ -407,7 +365,6 @@ void Canvas::exportImage(const char* filePath, const char* format) {
         }
     }
 
-    // Read the pixels from the texture
     Uint32* pixels = new Uint32[m_width * m_height];
     SDL_RenderReadPixels(
         m_renderer,
@@ -417,17 +374,24 @@ void Canvas::exportImage(const char* filePath, const char* format) {
         m_width * 4
     );
 
-    // Copy pixels to the surface
+   
     SDL_LockSurface(surface);
-    std::memcpy(surface->pixels, pixels, m_width * m_height * 4);
-    SDL_UnlockSurface(surface);
+    Uint32* surfacePixels = static_cast<Uint32*>(surface->pixels);
+    for (int i = 0; i < m_width * m_height; i++) {
+        Uint32 rgba = pixels[i];
+        Uint8 r = (rgba >> 0) & 0xFF;
+        Uint8 g = (rgba >> 8) & 0xFF;
+        Uint8 b = (rgba >> 16) & 0xFF;
+        Uint8 a = (rgba >> 24) & 0xFF;
+        surfacePixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+    SDL_UnlockSurface(surface); // Basically we had this funny color channel bug that changed image appearence on export. What
+    // we do is convert RGBA pixels to ARGB, as clearly seen above.
     delete[] pixels;
 
-    // Reset render target
     SDL_SetRenderTarget(m_renderer, nullptr);
     SDL_DestroyTexture(tempTexture);
 
-    // Save the surface
     std::string formatStr = format ? format : "PNG";
     int result = 0;
 
@@ -442,7 +406,6 @@ void Canvas::exportImage(const char* filePath, const char* format) {
     if (result != 0) {
         std::cerr << "Failed to save image: " << IMG_GetError() << std::endl;
     } else {
-        // Add to recent files list on successful save
         Editor::getInstance().addRecentFile(std::string(filePath));
     }
 
@@ -455,57 +418,46 @@ void Canvas::render() {
     SDL_Texture* originalTarget = SDL_GetRenderTarget(m_renderer);
 
     SDL_SetRenderTarget(m_renderer, m_canvasBuffer);
-    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 255); // white bg
+    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 255);
     SDL_RenderClear(m_renderer);
 
     for (const auto& layer : m_layers) {
-        if (!layer->isVisible() || !layer->getTexture()) continue; // quick skip
+        if (!layer->isVisible() || !layer->getTexture()) continue;
 
         SDL_SetTextureAlphaMod(layer->getTexture(), static_cast<Uint8>(layer->getOpacity() * 255));
 
             SDL_BlendMode blendMode = SDL_BLENDMODE_BLEND;
 
-            // Set different blend modes based on the layer's blend mode setting
             switch(layer->getBlendMode()) {
-                //  SDL2 does not include built-in support for all blend modes (e.g. screen, subtract, multiply).
-                // Here we manually define custom blend modes using SDL_ComposeCustomBlendMode.
-                // SDL_ComposeCustomBlendMode reference: https://wiki.libsdl.org/SDL2/SDL_ComposeCustomBlendMode. This will do
-                // for now
                 case 0:
                     blendMode = SDL_BLENDMODE_BLEND;
                     break;
                 case 1:
-                // This blend mode will be used for multiply blending (darkens)
                     blendMode = SDL_ComposeCustomBlendMode(
                         SDL_BLENDFACTOR_DST_COLOR, SDL_BLENDFACTOR_ZERO, SDL_BLENDOPERATION_ADD,
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
                     break;
                 case 2:
-                // This blend mode will be used for screen blending (lightens)
                     blendMode = SDL_ComposeCustomBlendMode(
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE_MINUS_SRC_COLOR, SDL_BLENDOPERATION_ADD,
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
                     break;
                 case 3:
-                // This blend mode will be used for additive blending (lightens)
                     blendMode = SDL_ComposeCustomBlendMode(
                         SDL_BLENDFACTOR_DST_COLOR, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD,
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
                     break;
                 case 4:
-                // This blend mode will be used for color burn blending (darkens)
                     blendMode = SDL_ComposeCustomBlendMode(
                         SDL_BLENDFACTOR_DST_COLOR, SDL_BLENDFACTOR_ONE_MINUS_SRC_COLOR, SDL_BLENDOPERATION_ADD,
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
                     break;
                 case 5:
-                // This blend mode will be used for multiply blending (darkens)
                     blendMode = SDL_ComposeCustomBlendMode(
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_DST_COLOR, SDL_BLENDOPERATION_ADD,
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
                     break;
                 case 6:
-                // This one will be used for additive blending (lightens)
                     blendMode = SDL_ComposeCustomBlendMode(
                         SDL_BLENDFACTOR_DST_COLOR, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD,
                         SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
@@ -516,15 +468,12 @@ void Canvas::render() {
             }
             SDL_SetTextureBlendMode(layer->getTexture(), blendMode);
 
-            // Get texture dimensions for positioning
             int textureWidth, textureHeight;
             SDL_QueryTexture(layer->getTexture(), nullptr, nullptr, &textureWidth, &textureHeight);
 
-            // Create destination rectangle with layer position
             SDL_Rect destRect = {layer->getX(), layer->getY(), textureWidth, textureHeight};
 
             if (layer->isUsingMask() && layer->getMask()) {
-                // HACK: mask blending broken since SDL upgrade (issue #89)
                 SDL_SetTextureAlphaMod(layer->getTexture(), 128);
                 SDL_RenderCopy(m_renderer, layer->getTexture(), nullptr, &destRect);
                 SDL_SetTextureAlphaMod(layer->getTexture(), static_cast<Uint8>(layer->getOpacity() * 255));
@@ -543,10 +492,8 @@ void Canvas::render() {
         drawResizeHandles(m_renderer);
     }
 
-    // Draw transform box for smart object selection
     drawTransformBox(m_renderer);
 
-    // Force a render flush to prevent UI artifacts - learned this the hard way
     SDL_RenderFlush(m_renderer);
 
     Tool* currentTool = ToolManager::getInstance().getCurrentTool();
@@ -556,30 +503,26 @@ void Canvas::render() {
 
     SDL_SetRenderTarget(m_renderer, originalTarget);
 
-    SDL_Rect canvasRect = {0, 0, m_width, m_height}; // FIXME: hardcoded position
+    SDL_Rect canvasRect = {0, 0, m_width, m_height};
     SDL_RenderCopy(m_renderer, m_canvasBuffer, nullptr, &canvasRect);
 }
 
 void Canvas::drawResizeHandles(SDL_Renderer* renderer) {
     if (!m_hasSelection) return;
 
-    // Define handle positions
     SDL_Rect handles[8];
     const int hs = HANDLE_SIZE;
 
-    // Corner handles
-    handles[0] = {m_selectionRect.x - hs/2, m_selectionRect.y - hs/2, hs, hs}; // top-left
-    handles[1] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y - hs/2, hs, hs}; // top-right
-    handles[2] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs}; // bottom-left
-    handles[3] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs}; // bottom-right
+    handles[0] = {m_selectionRect.x - hs/2, m_selectionRect.y - hs/2, hs, hs};
+    handles[1] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y - hs/2, hs, hs};
+    handles[2] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs};
+    handles[3] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs};
 
-    // Edge handles
-    handles[4] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y - hs/2, hs, hs}; // top
-    handles[5] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs}; // bottom
-    handles[6] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs}; // left
-    handles[7] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs}; // right
+    handles[4] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y - hs/2, hs, hs};
+    handles[5] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs};
+    handles[6] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs};
+    handles[7] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs};
 
-    // Draw the handles
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     for (int i = 0; i < 8; i++) {
         SDL_RenderFillRect(renderer, &handles[i]);
@@ -594,24 +537,20 @@ void Canvas::drawResizeHandles(SDL_Renderer* renderer) {
 bool Canvas::handleResizeEvent(const SDL_Event& event, const SDL_Point& mousePos) {
     if (!m_hasSelection) return false;
 
-    // Define handle regions
     SDL_Rect handles[8];
     const int hs = HANDLE_SIZE;
 
-    // Corner handles
-    handles[0] = {m_selectionRect.x - hs/2, m_selectionRect.y - hs/2, hs, hs}; // top-left
-    handles[1] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y - hs/2, hs, hs}; // top-right
-    handles[2] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs}; // bottom-left
-    handles[3] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs}; // bottom-right
+    handles[0] = {m_selectionRect.x - hs/2, m_selectionRect.y - hs/2, hs, hs};
+    handles[1] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y - hs/2, hs, hs};
+    handles[2] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs};
+    handles[3] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs};
 
-    // Edge handles
-    handles[4] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y - hs/2, hs, hs}; // top
-    handles[5] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs}; // bottom
-    handles[6] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs}; // left
-    handles[7] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs}; // right
+    handles[4] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y - hs/2, hs, hs};
+    handles[5] = {m_selectionRect.x + m_selectionRect.w/2 - hs/2, m_selectionRect.y + m_selectionRect.h - hs/2, hs, hs};
+    handles[6] = {m_selectionRect.x - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs};
+    handles[7] = {m_selectionRect.x + m_selectionRect.w - hs/2, m_selectionRect.y + m_selectionRect.h/2 - hs/2, hs, hs};
 
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
-        // Check if we clicked on a handle
         for (int i = 0; i < 8; i++) {
             if (SDL_PointInRect(&mousePos, &handles[i])) {
                 m_resizeCorner = i;
@@ -621,39 +560,38 @@ bool Canvas::handleResizeEvent(const SDL_Event& event, const SDL_Point& mousePos
             }
         }
     } else if (event.type == SDL_MOUSEMOTION && m_resizeCorner != -1) {
-        // Update selection rect based on which handle is being dragged
         int dx = mousePos.x - m_resizeStartMouse.x;
         int dy = mousePos.y - m_resizeStartMouse.y;
 
         switch (m_resizeCorner) {
-            case 0: // top-left
+            case 0:
                 m_selectionRect.x = m_resizeStartCanvas.x + dx;
                 m_selectionRect.y = m_resizeStartCanvas.y + dy;
                 m_selectionRect.w = m_resizeStartCanvas.w - dx;
                 m_selectionRect.h = m_resizeStartCanvas.h - dy;
                 break;
-            case 1: // top-right
+            case 1:
                 m_selectionRect.y = m_resizeStartCanvas.y + dy;
                 m_selectionRect.w = m_resizeStartCanvas.w + dx;
                 m_selectionRect.h = m_resizeStartCanvas.h - dy;
                 break;
-            case 2: // bottom-left
+            case 2:
                 m_selectionRect.x = m_resizeStartCanvas.x + dx;
                 m_selectionRect.w = m_resizeStartCanvas.w - dx;
                 m_selectionRect.h = m_resizeStartCanvas.h + dy;
                 break;
-            case 3: // bottom-right
+            case 3:
                 m_selectionRect.w = m_resizeStartCanvas.w + dx;
                 m_selectionRect.h = m_resizeStartCanvas.h + dy;
                 break;
-            case 4: // top
+            case 4:
                 m_selectionRect.y = m_resizeStartCanvas.y + dy;
                 m_selectionRect.h = m_resizeStartCanvas.h - dy;
                 break;
-            case 5: // bottom
+            case 5:
                 m_selectionRect.h = m_resizeStartCanvas.h + dy;
                 break;
-            case 6: // left
+            case 6:
                 m_selectionRect.x = m_resizeStartCanvas.x + dx;
                 m_selectionRect.w = m_resizeStartCanvas.w - dx;
                 break;
@@ -662,7 +600,6 @@ bool Canvas::handleResizeEvent(const SDL_Event& event, const SDL_Point& mousePos
                 break;
         }
 
-        // Ensure selection remains valid
         if (m_selectionRect.w < 1) m_selectionRect.w = 1;
         if (m_selectionRect.h < 1) m_selectionRect.h = 1;
 
@@ -683,7 +620,7 @@ SDL_Surface* Canvas::resizeImage(SDL_Surface* src, int newWidth, int newHeight) 
 
     if (!resized) return nullptr;
 
-    // Simple nearest neighbor scaling
+    // Nearest neighbor scaling algorithm is quick but results are usually pixelated
     SDL_LockSurface(src);
     SDL_LockSurface(resized);
 
@@ -714,7 +651,6 @@ void Canvas::resizeCanvas(int newWidth, int newHeight) {
     m_width = newWidth;
     m_height = newHeight;
 
-    // Recreate canvas buffer
     if (m_canvasBuffer) {
         SDL_DestroyTexture(m_canvasBuffer);
     }
@@ -727,12 +663,9 @@ void Canvas::resizeCanvas(int newWidth, int newHeight) {
         newHeight
     );
 
-    // Resize all layers
     for (auto& layer : m_layers) {
         if (layer->getTexture()) {
             SDL_Texture* oldTexture = layer->getTexture();
-
-            // Create new texture with new size
             SDL_Texture* newTexture = SDL_CreateTexture(
                 m_renderer,
                 SDL_PIXELFORMAT_RGBA8888,
@@ -742,12 +675,9 @@ void Canvas::resizeCanvas(int newWidth, int newHeight) {
             );
 
             if (newTexture) {
-                // Clear with transparency
                 SDL_SetRenderTarget(m_renderer, newTexture);
                 SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
                 SDL_RenderClear(m_renderer);
-
-                // Copy old content
                 SDL_RenderCopy(m_renderer, oldTexture, nullptr, nullptr);
                 SDL_SetRenderTarget(m_renderer, nullptr);
 
@@ -765,7 +695,6 @@ void Canvas::cropImage() {
 
     if (newWidth <= 0 || newHeight <= 0) return;
 
-    // Create new textures for all layers
     for (auto& layer : m_layers) {
         if (layer->getTexture()) {
             SDL_Texture* oldTexture = layer->getTexture();
@@ -792,11 +721,9 @@ void Canvas::cropImage() {
         }
     }
 
-    // Update canvas size
     m_width = newWidth;
     m_height = newHeight;
 
-    // Recreate canvas buffer
     if (m_canvasBuffer) {
         SDL_DestroyTexture(m_canvasBuffer);
     }
@@ -809,19 +736,17 @@ void Canvas::cropImage() {
         newHeight
     );
 
-    // Clear selection
     m_hasSelection = false;
     m_selectionRect = {0, 0, 0, 0};
 }
 
 void Canvas::rotateImage(int desiredAngle) {
-    // Rotation logic - handles any angle but optimizes for common cases
-    // Originally tried to be clever with loops but that was just asking for trouble
+    // Rotation logic - more or less handle any angle but optimizes for common cases (like the 4 angles in unit cirlce[that's what's its called right?])
+    // Originally tried to be clever with loops but the result was not something I was able to deal with.
 
-    if (desiredAngle == 0) return; // why waste time?
+    if (desiredAngle == 0) return;
 
-    // Normalize the angle - SDL gets cranky with values outside -360 to 360
-    int normalizedRotation = desiredAngle % 360;
+
     if (normalizedRotation < 0) normalizedRotation += 360;
 
     // Special handling for 90-degree increments since they're super common
@@ -843,7 +768,7 @@ void Canvas::rotateImage(int desiredAngle) {
         int origWidth, origHeight;
         SDL_QueryTexture(originalLayerTexture, nullptr, nullptr, &origWidth, &origHeight);
 
-        // Calculate rotated texture bounds - this math took me way too long to figure out
+        // Calculate rotated texture bounds 
         double angleInRadians = normalizedRotation * M_PI / 180.0;
         double cosAngle = std::abs(std::cos(angleInRadians));
         double sinAngle = std::abs(std::sin(angleInRadians));
@@ -856,20 +781,17 @@ void Canvas::rotateImage(int desiredAngle) {
                                                        rotatedTextureWidth, rotatedTextureHeight);
 
         if (!rotatedTexture) {
-            // Sometimes texture creation fails - just skip this layer rather than crash
+            // We just skip this layer rather than crash incase the texture is null.
             continue;
         }
 
-        // Set up rendering to the new texture
         SDL_Texture* previousTarget = SDL_GetRenderTarget(m_renderer);
         SDL_SetRenderTarget(m_renderer, rotatedTexture);
 
-        // Clear with transparent background
         SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_NONE);
         SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
         SDL_RenderClear(m_renderer);
 
-        // Calculate center point for rotation
         SDL_Point rotationCenter = {rotatedTextureWidth / 2, rotatedTextureHeight / 2};
         SDL_Rect destinationRect = {
             rotationCenter.x - origWidth / 2,
@@ -878,26 +800,17 @@ void Canvas::rotateImage(int desiredAngle) {
             origHeight
         };
 
-        // Actually do the rotation - SDL_RenderCopyEx is finicky but works
         SDL_RenderCopyEx(m_renderer, originalLayerTexture, nullptr, &destinationRect,
                         static_cast<double>(normalizedRotation), &rotationCenter, SDL_FLIP_NONE);
 
-        // Restore previous render target
         SDL_SetRenderTarget(m_renderer, previousTarget);
 
-        // Replace the layer's texture with our rotated version
         currentLayer->setTexture(rotatedTexture);
     }
 
-    // Update canvas dimensions if needed
     if (newCanvasWidth != m_width || newCanvasHeight != m_height) {
         m_width = newCanvasWidth;
         m_height = newCanvasHeight;
-
-        // Recreate the canvas buffer - this could probably be optimized but it works
-        if (m_canvasBuffer) {
-            SDL_DestroyTexture(m_canvasBuffer);
-        }
 
         m_canvasBuffer = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888,
                                          SDL_TEXTUREACCESS_TARGET, m_width, m_height);
@@ -911,25 +824,24 @@ void Canvas::rotateImage(int desiredAngle) {
 }
 
 /**
- * Applies a grayscale filter to the active layer
- *
- * This implementation addresses potential crashes by:
- * 1. Verifying all pointers before use
- * 2. Checking surface creation success
- * 3. Using proper surface format matching
- * 4. Ensuring correct texture dimensions are used
- * 5. Properly cleaning up resources even on error paths
+ * Applies a grayscale filter to the active layer.
+ * 
+ * WARNING: Applying blur followed by grayscale can cause segmentation faults.
+ * This implementation includes safety measures:
+ * - Verifies pointers and surface creation
+ * - Matches surface formats properly
+ * - Cleans up resources on error paths
  */
 
-// HACK: Buffer image system - genius workaround for filter stacking crashes!
-// Create hidden buffer, apply filter, then replace current texture
+/**
+ * Creates a temporary buffer for safe filter application by copying the active layer's content.
+ * This prevents filter crashes by working on a separate texture before applying to the layer.
+ */
 void Canvas::createFilterBuffer() {
-    cleanupFilterBuffer(); // Clean up any existing buffer
+    cleanupFilterBuffer(); 
 
     Layer* activeLayer = getActiveLayer();
     if (!activeLayer) return;
-
-    // Create buffer texture same size as canvas
     m_filterBuffer = SDL_CreateTexture(
         m_renderer,
         SDL_PIXELFORMAT_RGBA8888,
@@ -940,7 +852,6 @@ void Canvas::createFilterBuffer() {
 
     if (!m_filterBuffer) return;
 
-    // Copy current layer texture to buffer
     SDL_SetRenderTarget(m_renderer, m_filterBuffer);
     SDL_RenderCopy(m_renderer, activeLayer->getTexture(), nullptr, nullptr);
     SDL_SetRenderTarget(m_renderer, nullptr);
@@ -964,35 +875,27 @@ void Canvas::cleanupFilterBuffer() {
     }
 }
 void Canvas::applyGrayscale() {
-    // WARNING: Using blur then grayscale can cause segfaults
-    // Edge cases need understanding, now optimized under great handling - is straightforward
-    // (Enough is cute)
-    // HACK: Use buffer image system to prevent crashes - genius workaround!
     if (m_filterInProgress) return;
 
     Layer* activeLayer = getActiveLayer();
     if (!activeLayer || activeLayer->isLocked()) return;
 
-    // FIXED: Save undo state before applying filter
     Editor::getInstance().saveUndoState();
 
     m_filterInProgress = true;
-    createFilterBuffer(); // Create buffer for safe filter application
+    createFilterBuffer();
 
-    // Work on buffer instead of original texture
     SDL_Texture* texture = m_filterBuffer;
     if (!texture) {
         m_filterInProgress = false;
         return;
     }
 
-    // Get texture dimensions instead of using canvas dimensions
     int texWidth, texHeight;
     if (SDL_QueryTexture(texture, NULL, NULL, &texWidth, &texHeight) != 0) {
         return;
     }
 
-    // LEAK FIX: Set render target to texture for pixel reading
     SDL_SetRenderTarget(m_renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, texWidth, texHeight, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
@@ -1002,68 +905,52 @@ void Canvas::applyGrayscale() {
         return;
     }
 
-    // Read pixels from the texture into the surface
     if (SDL_RenderReadPixels(m_renderer, nullptr, SDL_PIXELFORMAT_RGBA8888, surface->pixels, surface->pitch) != 0) {
-        // LEAK FIX: Always clean up surface on failure
         SDL_FreeSurface(surface);
         SDL_SetRenderTarget(m_renderer, nullptr);
         return;
     }
 
-    // Apply grayscale conversion
     SDL_LockSurface(surface);
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
 
     for (int i = 0; i < surface->w * surface->h; i++) {
         Uint8 r, g, b, a;
         SDL_GetRGBA(pixels[i], surface->format, &r, &g, &b, &a);
-
-        // Weighted grayscale conversion - same as before to keep user results consistent
         Uint8 gray = static_cast<Uint8>(0.299f * r + 0.587f * g + 0.114f * b);
         pixels[i] = SDL_MapRGBA(surface->format, gray, gray, gray, a);
     }
 
     SDL_UnlockSurface(surface);
 
-    // Create new texture from modified surface
     SDL_Texture* newTexture = SDL_CreateTextureFromSurface(m_renderer, surface);
 
-    // LEAK FIX: Clean up the surface regardless of whether the texture creation succeeded
     SDL_FreeSurface(surface);
     SDL_SetRenderTarget(m_renderer, nullptr);
 
     if (newTexture) {
-        // Set blend mode to preserve transparency
         SDL_SetTextureBlendMode(newTexture, SDL_BLENDMODE_BLEND);
-        // Apply to buffer instead of directly to layer
         SDL_SetRenderTarget(m_renderer, m_filterBuffer);
         SDL_RenderCopy(m_renderer, newTexture, nullptr, nullptr);
         SDL_SetRenderTarget(m_renderer, nullptr);
         SDL_DestroyTexture(newTexture);
-        }
+    }
 
-        // Apply buffer to layer and cleanup
-        applyFilterBuffer();
-
-        // FIXED: Mark filter completion and track last applied filter
-        m_lastAppliedFilter = FilterType::GRAYSCALE;
-        m_filterInProgress = false;
+    applyFilterBuffer();
+    m_lastAppliedFilter = FilterType::GRAYSCALE;
+    m_filterInProgress = false;
 }
 
 /**
- * Applies a blur filter to the active layer
- *
- * This optimized implementation:
- * 1. Uses actual texture dimensions rather than canvas dimensions
- * 2. Limits blur strength to prevent excessive processing
- * 3. Properly handles edge cases and memory management
- * 4. Uses array indexing optimization to prevent crashes from invalid memory access
- * 5. Maintains alpha channel transparency correctly
+ * Applies a blur filter to the active layer.
+ * 
+ * WARNING: Running grayscale after blur can cause crashes.
+ * Implementation features:
+ * - Uses correct texture dimensions
+ * - Safely handles edge cases and memory
+ * - Preserves alpha channel transparency
  */
 void Canvas::applyBlur(int strength) {
-    // WARNING: Using blur then grayscale can cause segfaults
-    // HACK: Use buffer image system - now we can stack filters safely!
-    // (Enough is cute)
     if (m_filterInProgress) return;
 
     Layer* activeLayer = getActiveLayer();
@@ -1074,24 +961,20 @@ void Canvas::applyBlur(int strength) {
 
     m_filterInProgress = true;
     createFilterBuffer(); // Create buffer for safe filter application
-
-    // Work on buffer instead of original texture
     SDL_Texture* texture = m_filterBuffer;
     if (!texture) {
         m_filterInProgress = false;
         return;
     }
 
-    // Limit strength to prevent excessive processing and potential crashes
     strength = std::min(std::max(strength, 1), 10);
 
-    // Get texture dimensions instead of using canvas dimensions
+
     int texWidth, texHeight;
     if (SDL_QueryTexture(texture, NULL, NULL, &texWidth, &texHeight) != 0) {
         return;
     }
 
-    // LEAK FIX: Simple box blur implementation with proper cleanup
     SDL_SetRenderTarget(m_renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, texWidth, texHeight, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
@@ -1101,20 +984,19 @@ void Canvas::applyBlur(int strength) {
         return;
     }
 
-    // Read pixels from the texture
+
     if (SDL_RenderReadPixels(m_renderer, nullptr, SDL_PIXELFORMAT_RGBA8888, surface->pixels, surface->pitch) != 0) {
-        // LEAK FIX: Always free surface on failure
+        // Special note, please free stuff as soon as it fails because it will give you problems like it did the other day.
         SDL_FreeSurface(surface);
         SDL_SetRenderTarget(m_renderer, nullptr);
         return;
     }
 
-    // Create a second surface for the blurred result
+    // Create a second surface for the blurred result we want
     SDL_Surface* blurred = SDL_CreateRGBSurface(0, texWidth, texHeight, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
 
     if (!blurred) {
-        // LEAK FIX: Don't forget to clean up the first surface
         SDL_FreeSurface(surface);
         SDL_SetRenderTarget(m_renderer, nullptr);
         return;
@@ -1126,14 +1008,11 @@ void Canvas::applyBlur(int strength) {
     Uint32* srcPixels = static_cast<Uint32*>(surface->pixels);
     Uint32* dstPixels = static_cast<Uint32*>(blurred->pixels);
 
-    // Create a temporary buffer for RGB values to prevent overflow
     int width = surface->w;
 
     for (int y = 0; y < surface->h; y++) {
         for (int x = 0; x < width; x++) {
             int r = 0, g = 0, b = 0, a = 0, count = 0;
-
-            // Box blur kernel - keeping the same algorithm so users get consistent results
             for (int dy = -strength; dy <= strength; dy++) {
                 for (int dx = -strength; dx <= strength; dx++) {
                     int nx = x + dx;
@@ -1177,7 +1056,7 @@ void Canvas::applyBlur(int strength) {
     SDL_Texture* newTexture = SDL_CreateTextureFromSurface(m_renderer, blurred);
 
     // LEAK FIX: Clean up the surfaces regardless of texture creation success
-    SDL_FreeSurface(surface);
+    SDL_FreeSurface(surface); // Inspect this with the other thing. Just ctrl f for special note
     SDL_FreeSurface(blurred);
     SDL_SetRenderTarget(m_renderer, nullptr);
 
@@ -1200,29 +1079,27 @@ void Canvas::applyBlur(int strength) {
 }
 
 void Canvas::applySharpen(int strength) {
-    // Sharpen filter using unsharp mask technique
+    /**
+     * Applies a sharpening filter using an unsharp mask kernel.
+     * The kernel enhances edges while maintaining the overall image structure.
+     */
     if (m_filterInProgress) return;
 
     Layer* activeLayer = getActiveLayer();
     if (!activeLayer || activeLayer->isLocked()) return;
 
-    // Save undo state before applying filter
     Editor::getInstance().saveUndoState();
 
     m_filterInProgress = true;
-
-    // Create filter buffer
     createFilterBuffer();
     if (!m_filterBuffer) {
         m_filterInProgress = false;
         return;
     }
 
-    // Get texture dimensions
     int width, height;
     SDL_QueryTexture(activeLayer->getTexture(), nullptr, nullptr, &width, &height);
 
-    // Create surface for pixel manipulation
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0);
     if (!surface) {
         cleanupFilterBuffer();
@@ -1230,14 +1107,12 @@ void Canvas::applySharpen(int strength) {
         return;
     }
 
-    // Read texture pixels
     SDL_SetRenderTarget(m_renderer, activeLayer->getTexture());
     SDL_RenderReadPixels(m_renderer, nullptr, SDL_PIXELFORMAT_RGBA32, surface->pixels, surface->pitch);
     SDL_SetRenderTarget(m_renderer, nullptr);
 
     Uint32* pixels = (Uint32*)surface->pixels;
 
-    // Create output surface
     SDL_Surface* outputSurface = SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0);
     if (!outputSurface) {
         SDL_FreeSurface(surface);
@@ -1248,7 +1123,6 @@ void Canvas::applySharpen(int strength) {
 
     Uint32* outputPixels = (Uint32*)outputSurface->pixels;
 
-    // Sharpen kernel - classic unsharp mask
     int kernel[3][3] = {
         { 0, -1,  0},
         {-1,  5, -1},
@@ -1260,7 +1134,6 @@ void Canvas::applySharpen(int strength) {
         for (int x = 1; x < width - 1; x++) {
             int rSum = 0, gSum = 0, bSum = 0;
 
-            // Apply kernel
             for (int ky = -1; ky <= 1; ky++) {
                 for (int kx = -1; kx <= 1; kx++) {
                     int px = x + kx;
@@ -1277,17 +1150,14 @@ void Canvas::applySharpen(int strength) {
                 }
             }
 
-            // Clamp values and apply strength
-            rSum = (rSum * strength) / 4;  // Normalize by strength
+            rSum = (rSum * strength) / 4;
             gSum = (gSum * strength) / 4;
             bSum = (bSum * strength) / 4;
 
-            // Clamp to valid range
             rSum = std::max(0, std::min(255, rSum));
             gSum = std::max(0, std::min(255, gSum));
             bSum = std::max(0, std::min(255, bSum));
 
-            // Keep original alpha
             Uint32 originalPixel = pixels[y * width + x];
             Uint8 r, g, b, a;
             SDL_GetRGBA(originalPixel, surface->format, &r, &g, &b, &a);
@@ -1297,10 +1167,8 @@ void Canvas::applySharpen(int strength) {
         }
     }
 
-    // Copy edges without filtering
     for (int y = 0; y < height; y++) {
         if (y == 0 || y == height - 1) {
-            // Copy entire top/bottom rows
             for (int x = 0; x < width; x++) {
                 outputPixels[y * width + x] = pixels[y * width + x];
             }
@@ -1371,13 +1239,10 @@ void Canvas::flipLayerHorizontal(Layer* layer) {
 
     SDL_Texture* texture = layer->getTexture();
 
-    // Get texture dimensions
     int width, height;
     if (SDL_QueryTexture(texture, nullptr, nullptr, &width, &height) != 0) {
         return;
     }
-
-    // Create surface from texture
     SDL_SetRenderTarget(m_renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
@@ -1387,7 +1252,6 @@ void Canvas::flipLayerHorizontal(Layer* layer) {
         return;
     }
 
-    // Read pixels from texture
     if (SDL_RenderReadPixels(m_renderer, nullptr, SDL_PIXELFORMAT_RGBA8888,
                            surface->pixels, surface->pitch) != 0) {
         SDL_FreeSurface(surface);
@@ -1411,11 +1275,11 @@ void Canvas::flipLayerHorizontal(Layer* layer) {
     Uint32* srcPixels = static_cast<Uint32*>(surface->pixels);
     Uint32* dstPixels = static_cast<Uint32*>(flipped->pixels);
 
-    // Flip horizontally - mirror the pixels
+    // Horizontal flip algorithm: mirror pixels across vertical axis
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int srcIndex = y * width + x;
-            int dstIndex = y * width + (width - 1 - x); // Flip x coordinate
+            int dstIndex = y * width + (width - 1 - x);
             dstPixels[dstIndex] = srcPixels[srcIndex];
         }
     }
@@ -1423,7 +1287,6 @@ void Canvas::flipLayerHorizontal(Layer* layer) {
     SDL_UnlockSurface(flipped);
     SDL_UnlockSurface(surface);
 
-    // Create new texture from flipped surface
     SDL_Texture* newTexture = SDL_CreateTextureFromSurface(m_renderer, flipped);
 
     SDL_FreeSurface(surface);
@@ -1441,13 +1304,11 @@ void Canvas::flipLayerVertical(Layer* layer) {
 
     SDL_Texture* texture = layer->getTexture();
 
-    // Get texture dimensions
     int width, height;
     if (SDL_QueryTexture(texture, nullptr, nullptr, &width, &height) != 0) {
         return;
     }
 
-    // Create surface from texture
     SDL_SetRenderTarget(m_renderer, texture);
     SDL_Surface* surface = SDL_CreateRGBSurface(0, width, height, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
@@ -1457,7 +1318,6 @@ void Canvas::flipLayerVertical(Layer* layer) {
         return;
     }
 
-    // Read pixels from texture
     if (SDL_RenderReadPixels(m_renderer, nullptr, SDL_PIXELFORMAT_RGBA8888,
                            surface->pixels, surface->pitch) != 0) {
         SDL_FreeSurface(surface);
@@ -1465,7 +1325,6 @@ void Canvas::flipLayerVertical(Layer* layer) {
         return;
     }
 
-    // Create flipped surface
     SDL_Surface* flipped = SDL_CreateRGBSurface(0, width, height, 32,
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
 
@@ -1481,11 +1340,11 @@ void Canvas::flipLayerVertical(Layer* layer) {
     Uint32* srcPixels = static_cast<Uint32*>(surface->pixels);
     Uint32* dstPixels = static_cast<Uint32*>(flipped->pixels);
 
-    // Flip vertically - mirror the rows
+    // Vertical flip algorithm: mirror pixels across horizontal axis
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int srcIndex = y * width + x;
-            int dstIndex = (height - 1 - y) * width + x; // Flip y coordinate
+            int dstIndex = (height - 1 - y) * width + x;
             dstPixels[dstIndex] = srcPixels[srcIndex];
         }
     }
@@ -1493,7 +1352,6 @@ void Canvas::flipLayerVertical(Layer* layer) {
     SDL_UnlockSurface(flipped);
     SDL_UnlockSurface(surface);
 
-    // Create new texture from flipped surface
     SDL_Texture* newTexture = SDL_CreateTextureFromSurface(m_renderer, flipped);
 
     SDL_FreeSurface(surface);
@@ -1613,7 +1471,6 @@ void Canvas::applyEdgeDetection() {
     SDL_UnlockSurface(edgeResult);
     SDL_UnlockSurface(originalSurface);
 
-    // Create new texture from our edge-detected result
     SDL_Texture* edgeTexture = SDL_CreateTextureFromSurface(m_renderer, edgeResult);
 
     SDL_FreeSurface(originalSurface);
@@ -1630,7 +1487,6 @@ void Canvas::adjustContrast(float contrast) {
     Layer* activeLayer = getActiveLayer();
     if (!activeLayer || activeLayer->isLocked()) return;
 
-    // FIXED: Save undo state before applying adjustment
     Editor::getInstance().saveUndoState();
 
     SDL_Texture* texture = activeLayer->getTexture();
@@ -2315,8 +2171,7 @@ void Canvas::applyColorBalance(float r, float g, float b) {
         Uint8 pr, pg, pb, pa;
         SDL_GetRGBA(pixels[i], surface->format, &pr, &pg, &pb, &pa);
 
-        // Apply color balance adjustments
-        int nr = std::clamp(pr + (int)(r * 255), 0, 255);
+            int nr = std::clamp(pr + (int)(r * 255), 0, 255);
         int ng = std::clamp(pg + (int)(g * 255), 0, 255);
         int nb = std::clamp(pb + (int)(b * 255), 0, 255);
 
@@ -2366,12 +2221,11 @@ void Canvas::applyCurves(float input, float output) {
     SDL_LockSurface(surface);
     Uint32* pixels = static_cast<Uint32*>(surface->pixels);
 
-    // Create a simple curve lookup table
+    // Curve lookup table - precompute values for performance (see line 1234)
     Uint8 curve[256];
     for (int i = 0; i < 256; i++) {
         float normalized = i / 255.0f;
 
-        // Simple curve based on input/output points
         float result;
         if (normalized <= input) {
             result = (output / input) * normalized;
@@ -2386,7 +2240,6 @@ void Canvas::applyCurves(float input, float output) {
         Uint8 r, g, b, a;
         SDL_GetRGBA(pixels[i], surface->format, &r, &g, &b, &a);
 
-        // Apply curve to each channel
         r = curve[r];
         g = curve[g];
         b = curve[b];
@@ -2500,12 +2353,10 @@ void Canvas::applyTransform() {
 
     // If no size change, just update position (simple move)
     if (m_transformRect.w == originalWidth && m_transformRect.h == originalHeight) {
-        // Just a move operation - position is already updated
         updateTransformRect();
         return;
     }
 
-    // Create new texture with transformed size
     SDL_Texture* newTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888,
                                                SDL_TEXTUREACCESS_TARGET,
                                                m_transformRect.w, m_transformRect.h);
@@ -2516,11 +2367,9 @@ void Canvas::applyTransform() {
         return;
     }
 
-    // Set up for rendering transformation
     SDL_Texture* originalTarget = SDL_GetRenderTarget(m_renderer);
     SDL_SetRenderTarget(m_renderer, newTexture);
 
-    // Clear new texture
     SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
     SDL_RenderClear(m_renderer);
 
@@ -2528,7 +2377,6 @@ void Canvas::applyTransform() {
     SDL_Rect destRect = {0, 0, m_transformRect.w, m_transformRect.h};
     SDL_RenderCopy(m_renderer, originalTexture, nullptr, &destRect);
 
-    // Restore original render target
     SDL_SetRenderTarget(m_renderer, originalTarget);
 
     // Set texture properties

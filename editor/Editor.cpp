@@ -3,12 +3,13 @@
 #include "../canvas/Layer.hpp"
 #include <iostream>
 
-// Editor handles undo/redo and other editing operations
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
 
-// HistoryState implementation
+// To be honest, I do not think we need any comments here as everything should be straight forward.
+// history will just help us with stuff like ctrl + z. Just like chrome tabs you push and pop... wait, that's a queue (the DSA for move back n forth)
+// Regardess, pretty simple.
 HistoryState::HistoryState(SDL_Texture* texture, int layerIndex)
     : m_texture(texture), m_layerIndex(layerIndex) {
 }
@@ -37,8 +38,6 @@ HistoryState& HistoryState::operator=(HistoryState&& other) noexcept {
     return *this;
 }
 
-// Editor implementation
-// Singleton pattern - keeps track of edit history
 Editor& Editor::getInstance() {
     static Editor instance;
     return instance;
@@ -47,17 +46,14 @@ Editor& Editor::getInstance() {
 Editor::Editor() = default;
 
 void Editor::init() {
-    // Load recent files from config
     loadRecentFiles();
 }
 
 void Editor::cleanup() {
-    // Clear undo stack
     while (!m_undoStack.empty()) {
         m_undoStack.pop();
     }
     
-    // Clear redo stack
     while (!m_redoStack.empty()) {
         m_redoStack.pop();
     }
@@ -71,7 +67,6 @@ void Editor::saveUndoState() {
     Layer* activeLayer = canvas.getActiveLayer();
     if (!activeLayer) return;
     
-    // Create a copy of the current layer's texture
     SDL_Texture* copy = SDL_CreateTexture(
         canvas.getRenderer(), 
         SDL_PIXELFORMAT_RGBA8888, 
@@ -84,36 +79,29 @@ void Editor::saveUndoState() {
     SDL_RenderCopy(canvas.getRenderer(), activeLayer->getTexture(), nullptr, nullptr);
     SDL_SetRenderTarget(canvas.getRenderer(), nullptr);
     
-    // Push onto undo stack
     m_undoStack.push(HistoryState(copy, idx));
     
-    // HACK: Limit history size to prevent memory bloat
+
     limitHistorySize();
     
-    // Clear redo stack when new action is performed
     while (!m_redoStack.empty()) {
         m_redoStack.pop();
     }
 }
 
 void Editor::limitHistorySize() {
-    // Keep only the most recent MAX_HISTORY_SIZE states
     if (m_undoStack.size() > MAX_HISTORY_SIZE) {
-        // Create a temporary stack to reverse the order
         std::stack<HistoryState> temp;
         
-        // Move the most recent states to temp
         for (size_t i = 0; i < MAX_HISTORY_SIZE && !m_undoStack.empty(); i++) {
             temp.push(std::move(m_undoStack.top()));
             m_undoStack.pop();
         }
         
-        // Clear remaining old states
         while (!m_undoStack.empty()) {
             m_undoStack.pop();
         }
         
-        // Move states back to undo stack
         while (!temp.empty()) {
             m_undoStack.push(std::move(temp.top()));
             temp.pop();
@@ -128,7 +116,6 @@ void Editor::applyUndo() {
     Layer* activeLayer = canvas.getActiveLayer();
     if (!activeLayer) return;
     
-    // Save current state for redo
     SDL_Texture* currentTexture = activeLayer->getTexture();
     SDL_Texture* copyTexture = SDL_CreateTexture(
         canvas.getRenderer(), 
@@ -146,16 +133,13 @@ void Editor::applyUndo() {
         m_redoStack.push(HistoryState(copyTexture, canvas.getActiveLayerIndex()));
     }
     
-    // Get the undo state
     HistoryState undoState = std::move(m_undoStack.top());
     m_undoStack.pop();
     
-    // Apply the undo state
     canvas.setActiveLayerIndex(undoState.getLayerIndex());
     activeLayer = canvas.getActiveLayer();
     
     if (activeLayer) {
-        // Transfer ownership of texture to layer
         activeLayer->setTexture(undoState.getTexture());
     }
 }
@@ -167,7 +151,6 @@ void Editor::applyRedo() {
     Layer* activeLayer = canvas.getActiveLayer();
     if (!activeLayer) return;
     
-    // Save current state for undo
     SDL_Texture* currentTexture = activeLayer->getTexture();
     SDL_Texture* copyTexture = SDL_CreateTexture(
         canvas.getRenderer(), 
@@ -185,16 +168,13 @@ void Editor::applyRedo() {
         m_undoStack.push(HistoryState(copyTexture, canvas.getActiveLayerIndex()));
     }
     
-    // Get the redo state
     HistoryState redoState = std::move(m_redoStack.top());
     m_redoStack.pop();
     
-    // Apply the redo state
     canvas.setActiveLayerIndex(redoState.getLayerIndex());
     activeLayer = canvas.getActiveLayer();
     
     if (activeLayer) {
-        // Transfer ownership of texture to layer
         activeLayer->setTexture(redoState.getTexture());
     }
 }
@@ -203,13 +183,11 @@ void Editor::mergeLayers() {
     Canvas& canvas = Canvas::getInstance();
     if (canvas.getLayers().size() < 2) return;
     
-    // Create a new layer for the merged result
     canvas.addLayer("Merged");
     Layer* mergedLayer = canvas.getActiveLayer();
     
     if (!mergedLayer) return;
     
-    // Render all visible layers to the new layer
     SDL_SetRenderTarget(canvas.getRenderer(), mergedLayer->getTexture());
     
     for (const auto& layer : canvas.getLayers()) {
@@ -221,8 +199,7 @@ void Editor::mergeLayers() {
     
     SDL_SetRenderTarget(canvas.getRenderer(), nullptr);
     
-    // Remove all other layers
-    // Note: This is inefficient but matches the original functionality
+
     for (int i = static_cast<int>(canvas.getLayers().size()) - 2; i >= 0; i--) {
         canvas.removeLayer(i);
     }
@@ -247,12 +224,10 @@ void Editor::copySelection() {
     
     if (!canvas.hasSelection() || selectionRect.w <= 0 || selectionRect.h <= 0) return;
     
-    // Clean up existing selection texture
     if (canvas.getSelectionTexture()) {
         SDL_DestroyTexture(canvas.getSelectionTexture());
     }
     
-    // Create new selection texture
     SDL_Texture* selectionTexture = SDL_CreateTexture(
         canvas.getRenderer(),
         SDL_PIXELFORMAT_RGBA8888,
@@ -261,7 +236,6 @@ void Editor::copySelection() {
         selectionRect.h
     );
     
-    // Copy selected area to the texture
     SDL_SetRenderTarget(canvas.getRenderer(), selectionTexture);
     
     Layer* activeLayer = canvas.getActiveLayer();
@@ -280,15 +254,12 @@ void Editor::pasteSelection() {
     
     if (!selectionTexture) return;
     
-    // Get dimensions of the selection texture
     int width, height;
     SDL_QueryTexture(selectionTexture, nullptr, nullptr, &width, &height);
     
-    // Define paste position (offset from original)
     int pasteX = 10, pasteY = 10;
     SDL_Rect dest = {pasteX, pasteY, width, height};
     
-    // Paste to active layer
     Layer* activeLayer = canvas.getActiveLayer();
     if (activeLayer) {
         SDL_SetRenderTarget(canvas.getRenderer(), activeLayer->getTexture());
@@ -296,7 +267,6 @@ void Editor::pasteSelection() {
         SDL_SetRenderTarget(canvas.getRenderer(), nullptr);
     }
     
-    // Update selection rect
     canvas.setSelectionRect({pasteX, pasteY, width, height});
     canvas.setHasSelection(true);
 }
@@ -310,7 +280,6 @@ void Editor::deleteSelection() {
     Layer* activeLayer = canvas.getActiveLayer();
     if (!activeLayer) return;
     
-    // Clear the selected area on the active layer
     SDL_SetRenderTarget(canvas.getRenderer(), activeLayer->getTexture());
     SDL_SetRenderDrawBlendMode(canvas.getRenderer(), SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(canvas.getRenderer(), 0, 0, 0, 0);
@@ -320,23 +289,18 @@ void Editor::deleteSelection() {
     clearSelection();
 }
 
-// Recent Files implementation
 void Editor::addRecentFile(const std::string& filepath) {
-    // Remove if already exists to avoid duplicates
     auto it = std::find(m_recentFiles.begin(), m_recentFiles.end(), filepath);
     if (it != m_recentFiles.end()) {
         m_recentFiles.erase(it);
     }
     
-    // Add to front of list
     m_recentFiles.insert(m_recentFiles.begin(), filepath);
     
-    // Limit to MAX_RECENT_FILES
     if (m_recentFiles.size() > MAX_RECENT_FILES) {
         m_recentFiles.resize(MAX_RECENT_FILES);
     }
     
-    // Auto-save to config file
     saveRecentFiles();
 }
 
@@ -346,8 +310,7 @@ void Editor::clearRecentFiles() {
 }
 
 void Editor::loadRecentFiles() {
-    // Simple file-based storage - create .enough_recent_files in user directory
-    // TODO: Use proper config directory based on platform
+
     std::string configFile = ".enough_recent_files";
     
     FILE* file = fopen(configFile.c_str(), "r");
@@ -357,13 +320,11 @@ void Editor::loadRecentFiles() {
     m_recentFiles.clear();
     
     while (fgets(line, sizeof(line), file) && m_recentFiles.size() < MAX_RECENT_FILES) {
-        // Remove newline
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
             line[len-1] = '\0';
         }
         
-        // Skip empty lines
         if (strlen(line) > 0) {
             m_recentFiles.push_back(std::string(line));
         }
@@ -373,7 +334,6 @@ void Editor::loadRecentFiles() {
 }
 
 void Editor::saveRecentFiles() {
-    // Save to simple text file
     std::string configFile = ".enough_recent_files";
     
     FILE* file = fopen(configFile.c_str(), "w");

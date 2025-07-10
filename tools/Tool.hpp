@@ -7,24 +7,20 @@
 
 class Canvas;
 
-// Base class for all drawing tools
 class Tool {
 public:
     Tool() = default;
     virtual ~Tool() = default;
     
-    // Prevent copying - we don't want multiple instances
     Tool(const Tool&) = delete;
     Tool& operator=(const Tool&) = delete;
     
-    // Event handling - override these in each tool
     virtual void handleMouseDown(const SDL_Event& event) = 0;
     virtual void handleMouseMove(const SDL_Event& event) = 0;
     virtual void handleMouseUp(const SDL_Event& event) = 0;
     virtual void render(SDL_Renderer* /* renderer */) {}
     virtual void cancel() {}
     
-    // Tool properties
     virtual void setColor(const ImVec4& color) { m_color = color; }
     ImVec4 getColor() const { return m_color; }
     
@@ -37,13 +33,17 @@ public:
     virtual bool isDrawing() const { return m_isDrawing; }
     
 protected:
-    ImVec4 m_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);  // default to black
+    ImVec4 m_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);  
     int m_size = 1;
     bool m_isDrawing = false;
-    ImVec2 m_startPos = ImVec2(0, 0);   // where the user started drawing
-    ImVec2 m_currentPos = ImVec2(0, 0); // current mouse position
+    ImVec2 m_startPos = ImVec2(0, 0);   
+    ImVec2 m_currentPos = ImVec2(0, 0); 
     
-    // Helper to convert ImVec to SDL
+    // Helper to convert ImVec to SDL as ImVec does it like OpenGL where stuff ranges in the 1s.
+    // So if you multiply anything from that by 255, you get the color you want.
+    // 1 = 255
+    // x | x < 1 = x
+    // Lost the plot slightly but you get the idea. Cross multiply that and you will have a means for conversion.
     SDL_Color toSDLColor(const ImVec4& color) const {
         return {
             static_cast<Uint8>(color.x * 255),
@@ -54,8 +54,9 @@ protected:
     }
 };
 
-// Pencil tool for freehand drawing
-// Pencil tool
+// I tried a few different approaches here but settled on this inheritance model.
+// It gives us flexibility to add new tools without modifying existing code.
+// Each tool handles its own rendering and event logic which keeps the main loop clean.
 class PencilTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -70,12 +71,12 @@ public:
     int getBrushType() const { return m_brushType; }
     
 private:
-    int m_brushType = 0;  // 0=normal, 1=textured, 2=soft
+    int m_brushType = 0;
 };
 
-// Eraser tool
 class EraserTool : public Tool {
 public:
+    // Initialize with transparent color and larger size for better erasing experience
     EraserTool() { m_color = ImVec4(0, 0, 0, 0); m_size = 20; }  // transparent, bigger than pencil
     void handleMouseDown(const SDL_Event& event) override;
     void handleMouseMove(const SDL_Event& event) override;
@@ -84,7 +85,6 @@ public:
     const char* getTooltip() const override { return "Erase parts of the image"; }
 };
 
-// Line tool
 class LineTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -94,7 +94,9 @@ public:
     const char* getName() const override { return "Line"; }
     const char* getTooltip() const override { return "Draw straight lines"; }
     
-    // Line count control - how many lines to draw with random variation
+    // I think the bounds are 1-10 are pretty reasonable so I will create a selection based on this.
+    // I am not sure how this tool is supposed to work precisely (I have an idea) but I think I might hack it together.
+    // Contributors will likely help out with refining this later.
     void setLineCount(int count) { m_lineCount = count; }
     int getLineCount() const { return m_lineCount; }
     
@@ -102,7 +104,6 @@ private:
     int m_lineCount = 1;  // Default to single line
 };
 
-// Rectangle tool
 class RectangleTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -117,7 +118,6 @@ private:
     bool m_filled = false;
 };
 
-// Circle tool
 class CircleTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -132,7 +132,6 @@ private:
     bool m_filled = false;
 };
 
-// Triangle tool
 class TriangleTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -142,8 +141,7 @@ public:
     const char* getName() const override { return "Triangle"; }
     const char* getTooltip() const override { return "Draw triangles"; }
 };
-
-// Fill tool (bucket)
+// AKA bucket.
 class FillTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -154,6 +152,7 @@ public:
     
 private:
     void floodFill(int x, int y, ImVec4 fillColor, ImVec4 targetColor = ImVec4(0,0,0,0));
+    SDL_Texture* newTexture = nullptr; // See line 950 in the Toomanagers
 };
 
 class TextTool : public Tool {
@@ -234,7 +233,7 @@ private:
     void scanFontDirectory(const std::string& directory);
 };
 
-// Selection tool
+
 class SelectionTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -246,7 +245,7 @@ public:
     const char* getTooltip() const override { return "Select a region of the image"; }
 };
 
-// Flood selection tool - directly inspired by flood fill algorithm
+
 class FloodSelectionTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -271,7 +270,6 @@ private:
     void clearSelection();
 };
 
-// Gradient tool
 enum class GradientType { LINEAR, RADIAL, ANGULAR };
 
 class GradientTool : public Tool {
@@ -298,7 +296,6 @@ private:
     void drawGradient(SDL_Renderer* renderer, ImVec2 start, ImVec2 end, ImVec4 startColor, ImVec4 endColor);
 };
 
-// Healing brush tool
 class HealingTool : public Tool {
 public:
     void handleMouseDown(const SDL_Event& event) override;
@@ -311,7 +308,6 @@ private:
     void applyHealingAt(int x, int y);
 };
 
-// Clone stamp tool - samples from one area and paints to another
 class CloneStampTool : public Tool {
 public:
     CloneStampTool();
@@ -335,10 +331,9 @@ private:
     void drawSourcePreview(SDL_Renderer* renderer);
 };
 
-// Forward declaration
+
 class Editor;
 
-// Tool manager class
 class ToolManager {
 public:
     static ToolManager& getInstance();
@@ -367,10 +362,8 @@ public:
     void setEraserSize(int size);
     int getEraserSize() const;
     
-    // Text tool access
     TextTool* getTextTool() const;
     
-    // Gradient tool access
     GradientTool* getGradientTool() const;
     
 private:
@@ -389,7 +382,7 @@ private:
     int m_eraserSize = 20;
 };
 
-// Helper function to get the tool manager instance
+
 inline ToolManager& GetToolManager() {
     return ToolManager::getInstance();
 }

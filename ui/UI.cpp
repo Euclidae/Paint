@@ -11,10 +11,7 @@
 #include "../imgui/imgui_impl_sdl2.h"
 #include "../imgui/imgui_impl_sdlrenderer2.h"
 
-// Singleton instance
-// There is no complex logic here, just setting up buttons and contexts to perform with the functions I made in the other files through their singletons.
-// Think of this as HTML, I refer to web developers reading this, where the javascript is the singleton cluster, and the css is UI::setupTheme()
-// BoyTheTall and I made fun of Yandere dev one time. Karma returned to hit us hard.
+
 UI& UI::getInstance() {
     static UI instance;
     return instance;
@@ -41,19 +38,17 @@ UI::UI()
 
 bool UI::init(SDL_Window* window, SDL_Renderer* renderer) {
     if (m_initialized) {
-        return true; // Already initialized
+        return true;
     }
 
     IMGUI_CHECKVERSION();
 
-    // Check if context already exists
     if (ImGui::GetCurrentContext() == nullptr) {
         ImGui::CreateContext();
     }
 
     ImGuiIO& io = ImGui::GetIO();
 
-    // Check if platform backend is already initialized
     if (io.BackendPlatformUserData != nullptr) {
         ImGui_ImplSDL2_Shutdown();
     }
@@ -126,7 +121,6 @@ void UI::setupTheme() {
     style.Colors[ImGuiCol_TextSelectedBg]        = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
     style.Colors[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 
-    // Apply dark theme variant
     for (int i = 0; i <= ImGuiCol_COUNT; i++) {
         ImVec4& col = style.Colors[i];
         float H, S, V;
@@ -153,17 +147,13 @@ void UI::cleanup() {
 void UI::render() {
     ToolManager& toolManager = GetToolManager();
 
-    // Calculate sidebar width - make sure it's not too small
     const int sidebarWidth = std::max(300, (int)(ImGui::GetIO().DisplaySize.x * 0.2f));
 
-    // Figure out where to put everything
     const float canvasWidth = ImGui::GetIO().DisplaySize.x - sidebarWidth;
     const float windowHeight = ImGui::GetIO().DisplaySize.y;
 
-    // Render the menu bar first
     renderMenuBar();
 
-    // Tool panel on the right side
     ImGui::SetNextWindowPos(ImVec2(canvasWidth, 0));
     ImGui::SetNextWindowSize(ImVec2(sidebarWidth, windowHeight * 0.25f));
     ImGui::Begin("Tools", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -171,7 +161,6 @@ void UI::render() {
     renderToolPanel();
     ImGui::End();
 
-    // Color picker panel - extended to connect with layers panel
     ImGui::SetNextWindowPos(ImVec2(canvasWidth, windowHeight * 0.25f));
     ImGui::SetNextWindowSize(ImVec2(sidebarWidth, windowHeight * 0.25f));
     ImGui::Begin("Colors", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -179,7 +168,6 @@ void UI::render() {
     renderColorPicker();
     ImGui::End();
 
-    // Layers panel moved down by 50% total (20% + 30% more)
     ImGui::SetNextWindowPos(ImVec2(canvasWidth, windowHeight * 0.5f));
     ImGui::SetNextWindowSize(ImVec2(sidebarWidth, windowHeight * 0.3f));
     ImGui::Begin("Layers", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -187,7 +175,6 @@ void UI::render() {
     renderLayerPanel();
     ImGui::End();
 
-    // Tool properties panel at the bottom with scrolling
     ImGui::SetNextWindowPos(ImVec2(canvasWidth, windowHeight * 0.8f));
     ImGui::SetNextWindowSize(ImVec2(sidebarWidth, windowHeight * 0.2f));
     ImGui::Begin("Tool Properties", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -196,8 +183,6 @@ void UI::render() {
     renderToolProperties();
     ImGui::EndChild();
     ImGui::End();
-
-    // Show any dialogs that are open
     if (m_showNewCanvasDialog) renderNewCanvasDialog();
     if (m_showResizeDialog) renderResizeDialog();
     if (m_showContrastDialog) renderContrastDialog();
@@ -217,13 +202,11 @@ void UI::render() {
     }
     renderAboutDialog();
 
-    // Tool-specific stuff
-    // Text Editor Modal - only show when text tool is active
-    if (toolManager.getCurrentToolIndex() == 9) { // Text tool index (reordered)
+    if (toolManager.getCurrentToolIndex() == 9) {
         renderTextEditorModal();
     }
 
-    if (toolManager.getCurrentToolIndex() == 10) { // Gradient tool (reordered)
+    if (toolManager.getCurrentToolIndex() == 10) {
         ImGui::SetNextWindowPos(ImVec2(canvasWidth + 10, windowHeight * 0.6f));
         ImGui::SetNextWindowSize(ImVec2(sidebarWidth - 20, windowHeight * 0.15f));
         ImGui::Begin("Gradient Properties", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -451,7 +434,6 @@ void UI::renderHelpMenu() {
 void UI::renderToolPanel() {
     ToolManager& toolManager = GetToolManager();
 
-    // Display current tool name
     int currentToolIndex = toolManager.getCurrentToolIndex();
     Tool* currentTool = toolManager.getCurrentTool();
     if (currentTool) {
@@ -470,18 +452,15 @@ void UI::renderToolPanel() {
         ImGui::Separator();
     }
 
-    // Calculate button size for better visibility
     float panelWidth = ImGui::GetContentRegionAvail().x;
     float buttonWidth = (panelWidth - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
     float buttonHeight = 30.0f;
     ImVec2 buttonSize(buttonWidth, buttonHeight);
-
-    // Style for active tool
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.5f, 0.9f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.4f, 0.8f, 1.0f));
 
-    // First row
+
     if (currentToolIndex == 0) {
         ImGui::Button("Pencil", buttonSize);
     } else {
@@ -514,7 +493,7 @@ void UI::renderToolPanel() {
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.4f, 0.8f, 1.0f));
     }
 
-    // Second row
+
     if (currentToolIndex == 3) {
         ImGui::Button("Rectangle", buttonSize);
     } else {
@@ -547,7 +526,7 @@ void UI::renderToolPanel() {
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.4f, 0.8f, 1.0f));
     }
 
-    // Third row
+
     if (currentToolIndex == 6) {
         ImGui::Button("Fill", buttonSize);
     } else {
@@ -580,7 +559,7 @@ void UI::renderToolPanel() {
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.4f, 0.8f, 1.0f));
     }
 
-    // Fourth row
+
     if (currentToolIndex == 9) {
         ImGui::Button("Text", buttonSize);
     } else {
@@ -790,7 +769,7 @@ void UI::renderTextEditorModal() {
 
             if (textBox) {
                 ImGui::Text("Text:");
-                static char textBuffer[512]; // TODO: make this dynamic
+                static char textBuffer[512];
                 strncpy(textBuffer, textBox->content.c_str(), sizeof(textBuffer) - 1);
                 textBuffer[sizeof(textBuffer) - 1] = '\0';
 
@@ -835,7 +814,7 @@ void UI::renderTextEditorModal() {
                                 cleanName = cleanName.substr(0, dotPos);
                             }
 
-                            // quick hack to clean font names
+
                             while (!cleanName.empty() && (cleanName[0] == '!' || std::isdigit(cleanName[0]) || cleanName[0] == ' ')) {
                                 cleanName = cleanName.substr(1);
                             }
@@ -1474,7 +1453,6 @@ void UI::renderToolProperties() {
         }
     }
 
-    // Common tool properties for remaining tools
     else {
         ImGui::Text("Tool: %s", currentTool->getName());
         if (strlen(currentTool->getTooltip()) > 0) {

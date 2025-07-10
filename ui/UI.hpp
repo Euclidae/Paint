@@ -3,12 +3,10 @@
 #include "../imgui/imgui.h"
 #include "../tools/Tool.hpp"
 
-// Forward declarations
 class Canvas;
 class ToolManager;
 class Editor;
 
-// UI class for handling all ImGui-based user interface elements
 class UI {
 public:
     static UI& getInstance();
@@ -23,30 +21,25 @@ private:
     UI(const UI&) = delete;
     UI& operator=(const UI&) = delete;
 
-    // Theme management
+
     void setupTheme();
 
-    // Menu rendering
     void renderMenuBar();
     void renderFileMenu();
     void renderEditMenu();
+    void renderViewMenu();
     void renderLayerMenu();
     void renderFilterMenu();
     void renderHelpMenu();
 
-    // Tool UI
     void renderToolPanel();
     void renderToolProperties();
-
-    // Layer UI
     void renderLayerPanel();
 
-    // Property panels
     void renderColorPicker();
     void renderTextEditorModal();
     void renderGradientProperties();
 
-    // Dialog windows
     void renderNewCanvasDialog();
     void renderResizeDialog();
     void renderContrastDialog();
@@ -62,7 +55,6 @@ private:
     void renderHelpDialog();
     void renderAboutDialog();
 
-    // State variables
     bool m_initialized = false;
     bool m_showNewCanvasDialog = false;
     bool m_showResizeDialog = false;
@@ -101,7 +93,7 @@ private:
     float m_vibranceValue = 0.0f;
 };
 
-// Helper function to get the UI instance
+
 [[nodiscard("This is a singleton so it needs to be referenced.")]]inline UI& GetUI() {
     return UI::getInstance();
 }
